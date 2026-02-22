@@ -1,0 +1,28 @@
+joy_node:
+  ros__parameters:
+    device_id: 0
+    deadzone: 0.05
+    autorepeat_rate: 20.0
+
+dome_teleop_node:
+  ros__parameters:
+    # Axis 3 (right trigger on Xbox controller) controls dome rotation
+    axis_linear:
+      x: 3
+    scale_linear:
+      x: -1.5
+    scale_linear_turbo:
+      x: -3.0
+
+    # Disable yaw/angular control for dome
+    axis_angular:
+      #yaw: 3
+      yaw: -1
+    scale_angular:
+      yaw: 0.0
+    scale_angular_turbo:
+      yaw: 0.0
+
+    # No enable button required for dome control
+    require_enable_button: false
+    publish_stamped_twist: true

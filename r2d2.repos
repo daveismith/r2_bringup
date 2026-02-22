@@ -1,0 +1,13 @@
+repositories:
+  r2_bringup:
+    type: git
+    url: https://github.com/daveismith/r2_bringup.git
+    version: main
+  r2_description:
+    type: git
+    url: https://github.com/daveismith/r2_description.git
+    version: main
+  r2_sim:
+    type: git
+    url: https://github.com/daveismith/r2_sim.git
+    verison: main

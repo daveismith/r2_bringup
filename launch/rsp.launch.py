@@ -19,10 +19,6 @@ def generate_launch_description():
     # Process the URDF file
     pkg_path = os.path.join(get_package_share_directory('r2_bringup'))
     xacro_file = os.path.join(pkg_path,'urdf','robot.urdf.xacro')
-    #robot_description_config = xacro.process_file(xacro_file, use_ros2_control=use_ros2_control, sim_mode=True).toxml()
-    #print('--- Processed URDF ---')  # Marker to indicate the start of the URDF output
-    #print(robot_description_config)  # Print the processed URDF to the console for debugging
-    #print('--- End of URDF ---')  # Marker to indicate the end of the URDF output
     robot_description_config = Command(['xacro ', xacro_file, ' use_ros2_control:=', use_ros2_control, ' sim_mode:=', use_sim_time])
     
     # Create a robot_state_publisher node

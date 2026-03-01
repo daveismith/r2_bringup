@@ -11,3 +11,11 @@ repositories:
     type: git
     url: https://github.com/daveismith/r2_sim.git
     verison: main
+  ros2_roamadome:
+    type: git
+    url: https://github.com/daveismith/ros2_roamadome.git
+    version: main
+  ros2_shoulder_sensor:
+    type: git
+    url: https://github.com/daveismith/ros2_shoulder_sensor.git
+    version: main

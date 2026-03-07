@@ -7,6 +7,7 @@
         <ros2_control name="RoamADome" type="actuator">
             <hardware>
                 <plugin>ros2_roamadome/RoamadomeControl</plugin>
+                <param name="serial_port">/dev/ttyACM1</param>                
             </hardware>
             <joint name="dome_joint">
                 <command_interface name="position" />

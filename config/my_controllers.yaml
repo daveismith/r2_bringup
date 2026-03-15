@@ -76,8 +76,7 @@ joint_broad:
       - right_shoulder_joint
       - left_shoulder_joint
       - dome_joint
-      #- left_ankle_joint
-      #- right_ankle_joint
+      # No need to publish left_ankle_joint and right_ankle_joint as they are mimic joints of the shoulder joints
     interfaces:
       - position
 

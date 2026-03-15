@@ -7,6 +7,7 @@
         <ros2_control name="RoamADome" type="actuator">
             <hardware>
                 <plugin>ros2_roamadome/RoamadomeControl</plugin>
+                <param name="serial_port">/dev/ttyACM0</param>
             </hardware>
             <joint name="dome_joint">
                 <command_interface name="position" />
@@ -15,28 +16,29 @@
                 <state_interface name="position" />
             </joint>
         </ros2_control>
-
         <ros2_control name="ShoulderSensors" type="system">
             <hardware>
                 <plugin>ros2_shoulder_sensor/MagneticAngleSensor</plugin>
-                <param name="static_position">0.5</param>
+                <param name="can_interface">can0</param>
+                <param name="stale_timeout_ms">200</param>
+                <param name="startup_timeout_ms">1000</param>
             </hardware>
-                <!-- optional hardware-level default -->
-                <joint name="left_shoulder_joint">
-                    <param name="static_position">-0.6283</param>
-                    <param name="invert_position">true</param>
-                </joint>
-                <joint name="right_shoulder_joint">
-                    <param name="static_position">0.6283</param>
-                </joint>                            
-                <!--
-                <joint name="left_ankle_joint">
-                    <param name="static_position">-0.31415</param>
-                </joint>
-                <joint name="right_ankle_joint">
-                    <param name="static_position">-0.31415</param>
-                </joint>
-                -->
+
+            <joint name="left_shoulder_joint">
+                <state_interface name="position"/>
+                <state_interface name="temperature"/>
+                <param name="node_id">3</param>
+                <param name="invert_position">false</param>
+                <param name="zero_offset_deg">0.0</param>
+            </joint>
+
+            <joint name="right_shoulder_joint">
+                <state_interface name="position"/>
+                <state_interface name="temperature"/>
+                <param name="node_id">4</param>
+                <param name="invert_position">false</param>
+                <param name="zero_offset_deg">1.5</param>
+            </joint>
         </ros2_control>
     <!--
         <ros2_control name="RealRobot" type="system">

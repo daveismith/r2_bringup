@@ -86,13 +86,13 @@ def generate_launch_description():
         arguments=["dome_controller"],
     )
 
-
     delayed_joint_broad_spawner = RegisterEventHandler(
         event_handler=OnProcessStart(
             target_action=controller_manager,
             on_start=[
                 dome_controller_spawner,
-                joint_broad_spawner],
+                joint_broad_spawner
+                ],
         )
     )
 
@@ -104,7 +104,8 @@ def generate_launch_description():
         output='screen',
         parameters=[
             {
-                'source_list': ['/joint_broad/joint_states', '/left_shoulder/position', '/right_shoulder/position'],
+                #'source_list': ['/joint_broad/joint_states', '/left_shoulder/position', '/right_shoulder/position'],
+                'source_list': ['/joint_broad/joint_states'],
                 'zeros': {
                     'right_shoulder_joint': radians(0),
                     'right_ankle_joint': radians(0),

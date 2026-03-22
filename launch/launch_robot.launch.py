@@ -8,7 +8,7 @@ from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, Tim
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command
 from launch.actions import RegisterEventHandler
-from launch.event_handlers import OnProcessStart
+from launch.event_handlers import OnProcessStart, OnProcessExit
 from launch_ros.actions import Node
 from math import radians
 
@@ -21,6 +21,7 @@ def generate_launch_description():
     # !!! MAKE SURE YOU SET THE PACKAGE NAME CORRECTLY !!!
 
     package_name='r2_bringup' #<--- CHANGE ME
+    web_package_name = 'r2_web_interface'
 
     rsp = IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([os.path.join(
@@ -50,7 +51,8 @@ def generate_launch_description():
         package="controller_manager",
         executable="ros2_control_node",
         parameters=[{'robot_description': robot_description},
-                    controller_params_file]
+                    controller_params_file],
+        #arguments=['--ros-args', '--log-level', 'DEBUG'],
     )
 
     delayed_controller_manager = TimerAction(period=3.0, actions=[controller_manager])
@@ -61,11 +63,17 @@ def generate_launch_description():
                 )]), launch_arguments={'use_sim_time': 'false'}.items()
     )
 
-    #diff_drive_spawner = Node(
-    #    package="controller_manager",
-    #    executable="spawner",
-    #    arguments=["diff_cont"],
-    #)
+    web_interface = IncludeLaunchDescription(
+                PythonLaunchDescriptionSource([os.path.join(
+                    get_package_share_directory(web_package_name),'launch','web_interface.launch.py'
+                )]), launch_arguments={'use_sim_time': 'false', 'robot_mode': 'real'}.items()
+    )
+
+    diff_drive_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=["diff_cont"],
+    )
 
     #delayed_diff_drive_spawner = RegisterEventHandler(
     #    event_handler=OnProcessStart(
@@ -90,12 +98,20 @@ def generate_launch_description():
         event_handler=OnProcessStart(
             target_action=controller_manager,
             on_start=[
-                dome_controller_spawner,
                 joint_broad_spawner
                 ],
         )
     )
 
+    delay_robot_controller_spawner_after_joint_state_broadcaster_spawner = RegisterEventHandler(
+        event_handler=OnProcessExit(
+            target_action=joint_broad_spawner,
+            on_exit=[
+                diff_drive_spawner,
+                dome_controller_spawner,
+            ],
+        )
+    )
 
 
     joint_state_publisher = Node(
@@ -141,6 +157,8 @@ def generate_launch_description():
         delayed_controller_manager,
         #delayed_diff_drive_spawner,
         delayed_joint_broad_spawner,
+        delay_robot_controller_spawner_after_joint_state_broadcaster_spawner,
         joint_state_publisher,
-        dome_teleop
+        dome_teleop,
+        web_interface
     ])

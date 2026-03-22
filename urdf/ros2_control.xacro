@@ -4,6 +4,20 @@
     <xacro:unless value="$(arg sim_mode)">
         <ros2_control name="RealRobot" type="generic_system">
         </ros2_control>
+        <ros2_control name="ODriveInterface" type="system">
+            <hardware>
+                <plugin>odrive_ros2_control_plugin/ODriveHardwareInterface</plugin>
+                <param name="can">can1</param>
+            </hardware>
+
+            <joint name="left_wheel_joint">
+                <param name="node_id">1</param>
+            </joint>
+
+            <joint name="right_wheel_joint">
+                <param name="node_id">2</param>
+            </joint>
+        </ros2_control>
         <ros2_control name="RoamADome" type="actuator">
             <hardware>
                 <plugin>ros2_roamadome/RoamadomeControl</plugin>

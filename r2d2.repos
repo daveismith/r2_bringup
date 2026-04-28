@@ -25,5 +25,5 @@ repositories:
     version: main
   ros_odrive:
     type: git
-    url: https://github.com/daveismith/ros_odrive.git
-    verison: copilot/add-transmission-support-odrive
+    url: https://github.com/odriverobotics/ros_odrive.git
+    verison: main

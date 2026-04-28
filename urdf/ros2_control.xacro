@@ -16,23 +16,7 @@
 
             <joint name="right_wheel_joint">
                 <param name="node_id">2</param>
-            </joint>
-
-            <transmission name="left_wheel_trans">
-                <plugin>transmission_interface/SimpleTransmission</plugin>
-                <actuator name="left_wheel_motor" role="actuator1"/>
-                <joint name="left_wheel_joint" role="joint1">
-                    <mechanical_reduction>12.6</mechanical_reduction>
-                </joint>
-            </transmission>
-
-            <transmission name="right_wheel_trans">
-                <plugin>transmission_interface/SimpleTransmission</plugin>
-                <actuator name="right_wheel_motor" role="actuator1"/>
-                <joint name="right_wheel_joint" role="joint1">
-                    <mechanical_reduction>12.6</mechanical_reduction>
-                </joint>
-            </transmission>            
+            </joint>      
         </ros2_control>
         <ros2_control name="RoamADome" type="actuator">
             <hardware>
@@ -57,7 +41,7 @@
             <joint name="left_shoulder_joint">
                 <state_interface name="position"/>
                 <state_interface name="temperature"/>
-                <!--<param name="node_id">3</param>-->
+                <!--param name="unique_id">df643cf0134b1a350000000000000000</param-->
                 <param name="node_id">1</param>
                 <param name="invert_position">false</param>
                 <param name="zero_offset_deg">0.0</param>
@@ -66,42 +50,12 @@
             <joint name="right_shoulder_joint">
                 <state_interface name="position"/>
                 <state_interface name="temperature"/>
-                <!--<param name="node_id">4</param>-->
+                <!--param name="unique_id">df643cf013252b370000000000000000</param-->
                 <param name="node_id">2</param>
                 <param name="invert_position">false</param>
                 <param name="zero_offset_deg">1.5</param>
             </joint>
         </ros2_control>
-    <!--
-        <ros2_control name="RealRobot" type="system">
-            <hardware>
-                <plugin>diffdrive_arduino/DiffDriveArduinoHardware</plugin>
-                <param name="left_wheel_name">left_wheel_joint</param>
-                <param name="right_wheel_name">right_wheel_joint</param>
-                <param name="loop_rate">30</param>
-                <param name="device">/dev/ttyUSB0</param>
-                <param name="baud_rate">57600</param>
-                <param name="timeout_ms">1000</param>
-                <param name="enc_counts_per_rev">3436</param>
-            </hardware>
-            <joint name="left_wheel_joint">
-                <command_interface name="velocity">
-                    <param name="min">-10</param>
-                    <param name="max">10</param>
-                </command_interface>
-                <state_interface name="position"/>
-                <state_interface name="velocity"/>
-            </joint>
-            <joint name="right_wheel_joint">
-                <command_interface name="velocity">
-                    <param name="min">-10</param>
-                    <param name="max">10</param>
-                </command_interface>
-                <state_interface name="position"/>
-                <state_interface name="velocity"/>
-            </joint>
-        </ros2_control>
-        -->
     </xacro:unless>
 
 </robot>

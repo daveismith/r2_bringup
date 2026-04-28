@@ -10,7 +10,7 @@ repositories:
   r2_sim:
     type: git
     url: https://github.com/daveismith/r2_sim.git
-    verison: main
+    version: main
   r2_web_interface:
     type: git
     url: https://github.com/daveismith/r2_web_interface.git
@@ -26,4 +26,4 @@ repositories:
   ros_odrive:
     type: git
     url: https://github.com/odriverobotics/ros_odrive.git
-    verison: main
+    version: main

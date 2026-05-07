@@ -37,7 +37,7 @@ diff_cont:
     use_stamped_vel: true
     # use_stamped_vel: false
 
-    # open_loop: false    
+    open_loop: false    
 
     # wheels_per_side: x
     # wheel_separation_multiplier: x

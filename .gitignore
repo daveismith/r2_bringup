@@ -1,0 +1,8 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# colcon output (if built from inside the package by mistake)
+/build/
+/install/
+/log/

@@ -10,7 +10,6 @@ from launch.substitutions import Command
 from launch.actions import RegisterEventHandler
 from launch.event_handlers import OnProcessStart, OnProcessExit
 from launch_ros.actions import Node
-from math import radians
 
 
 
@@ -114,21 +113,10 @@ def generate_launch_description():
     )
 
 
-    joint_state_publisher = Node(
-        package="joint_state_publisher",
-        executable="joint_state_publisher",
-        output='screen',
-        parameters=[
-            {
-                #'source_list': ['/joint_broad/joint_states', '/left_shoulder/position', '/right_shoulder/position'],
-                'source_list': ['/joint_broad/joint_states'],
-                'zeros': {
-                    'right_shoulder_joint': radians(0),
-                    'right_ankle_joint': radians(0),
-                    'left_shoulder_joint': radians(0),
-                    'left_ankle_joint': radians(0),
-                }
-            }]
+    joint_states = IncludeLaunchDescription(
+                PythonLaunchDescriptionSource([os.path.join(
+                    get_package_share_directory(package_name),'launch','joint_states.launch.py'
+                )]), launch_arguments={'use_sim_time': 'false'}.items()
     )
 
     # Code for delaying a node (I haven't tested how effective it is)
@@ -158,7 +146,7 @@ def generate_launch_description():
         #delayed_diff_drive_spawner,
         delayed_joint_broad_spawner,
         delay_robot_controller_spawner_after_joint_state_broadcaster_spawner,
-        joint_state_publisher,
+        joint_states,
         dome_teleop,
         web_interface
     ])

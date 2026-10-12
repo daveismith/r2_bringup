@@ -71,18 +71,20 @@ If a repo has conflicts when popping its stash, resolve conflicts in that repo a
 
 ## Build
 
-Always build from the workspace root:
+Always build from the workspace root with `--symlink-install`, after sourcing the workspace's `setup.bash`. That file is per-machine and not in git; see [Per-machine environment](#per-machine-environment) for its contents.
 
 ```bash
 cd /home/davids/r2_ws
-source /opt/ros/jazzy/setup.bash
+source ./setup.bash
 colcon build --symlink-install
 ```
 
-After a successful build, source the workspace overlay:
+`setup.bash` sources the ROS install and then `install/setup.bash`. On the very first build, before `install/` exists, it reports that `install/setup.bash` is missing; this is expected.
+
+After a build that adds new packages or executables, source `setup.bash` again in each shell you use:
 
 ```bash
-source install/setup.bash
+source ./setup.bash
 ```
 
 ## Optional: build specific packages only
@@ -90,6 +92,63 @@ source install/setup.bash
 ```bash
 colcon build --symlink-install --packages-select r2_bringup r2_description r2_sim r2_web_interface ros2_roamadome ros2_shoulder_sensor
 ```
+
+## Zenoh router
+
+The workspace uses `rmw_zenoh_cpp`. Each machine runs its own Zenoh router, and every ROS node on that machine (including RViz and `ros2` CLI tools) connects to the local router on `tcp/localhost:7447`. A dev machine's router links to the robot's router, so nodes on the laptop can see the robot's topics.
+
+```
+laptop nodes ──> laptop router ──(connect)──> robot router <── robot nodes
+```
+
+### Per-machine environment
+
+Each machine has a `setup.bash` in the workspace root (not in git) that selects the RMW and says whether this machine's router should connect to the robot.
+
+Dev machine (laptop):
+
+```bash
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+# Robot router for launch_zenoh_router.launch.py to connect to (leave unset on the robot)
+export R2_ZENOH_CONNECT=tcp/r2-body.davidiansmith.ca:7447
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+```
+
+Robot: the same, but without `R2_ZENOH_CONNECT`.
+
+Source it from the workspace root, because it uses relative paths:
+
+```bash
+cd /home/davids/r2_ws
+source ./setup.bash
+```
+
+### Start the router
+
+Use the same command on every machine:
+
+```bash
+ros2 launch r2_bringup launch_zenoh_router.launch.py
+```
+
+The launch file starts `rmw_zenohd` with the stock router config shipped with `rmw_zenoh_cpp`. It applies its overrides through `ZENOH_CONFIG_OVERRIDE`, set only for the router process:
+
+- `transport/link/tx/keep_alive=12`
+- `connect/endpoints=[...]`, taken from the `connect` launch argument. This argument defaults to `$R2_ZENOH_CONNECT`; when it's empty, no connect endpoints are set.
+
+To connect somewhere else for a single run, pass the argument. Separate multiple endpoints with commas:
+
+```bash
+ros2 launch r2_bringup launch_zenoh_router.launch.py connect:=tcp/192.168.1.50:7447
+```
+
+Check the link from the laptop: with both routers running, `ros2 topic list` should show the robot's topics.
+
+### Things to avoid
+
+- Don't export `ZENOH_CONFIG_OVERRIDE` in `setup.bash`. It applies to every Zenoh process, so each node would connect to the robot directly instead of to its local router.
+- Don't keep a copied `DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5` or set `ZENOH_ROUTER_CONFIG_URI`. The launch file unsets `ZENOH_ROUTER_CONFIG_URI` so that the stock config, which is updated along with `rmw_zenoh_cpp`, is always used. Put any new router settings into the override list in `launch/launch_zenoh_router.launch.py`.
 
 ## Notes
 

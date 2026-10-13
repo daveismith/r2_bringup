@@ -80,7 +80,6 @@ diff_cont:
 
 joint_broad:
   ros__parameters:
-    publish_rate: 100.0
     use_local_topics: true
     joints: 
       - left_wheel_joint

@@ -150,6 +150,11 @@ Check the link from the laptop: with both routers running, `ros2 topic list` sho
 - Don't export `ZENOH_CONFIG_OVERRIDE` in `setup.bash`. It applies to every Zenoh process, so each node would connect to the robot directly instead of to its local router.
 - Don't keep a copied `DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5` or set `ZENOH_ROUTER_CONFIG_URI`. The launch file unsets `ZENOH_ROUTER_CONFIG_URI` so that the stock config, which is updated along with `rmw_zenoh_cpp`, is always used. Put any new router settings into the override list in `launch/launch_zenoh_router.launch.py`.
 
+## Joint state topics
+
+- `/joint_states`: every joint, merged by `joint_state_publisher` from `/joint_broad/joint_states` and the dome servo device's `/dome/joint_states`.
+- `/dome_state_broadcaster/joint_states`: only `dome_joint` (position), published by the `dome_state_broadcaster` controller at 10 Hz. It's for the dome servo device, which only needs the dome's rotation, refreshes its display at 4 Hz, and is too small to handle the full `/joint_states` message comfortably. The rate is `update_rate` under `dome_state_broadcaster.ros__parameters` in `config/my_controllers.yaml`. Keep it a divisor of the controller manager's 30 Hz; any other rate gives uneven spacing and a warning at startup.
+
 ## Notes
 
 - The `r2d2.repos` file currently includes `astromech_msgs`, `ros_odrive`, and the R2 packages.

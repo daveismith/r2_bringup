@@ -93,6 +93,12 @@ def generate_launch_description():
         arguments=["dome_controller"],
     )
 
+    dome_state_broadcaster_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=["dome_state_broadcaster"],
+    )
+
     delayed_joint_broad_spawner = RegisterEventHandler(
         event_handler=OnProcessStart(
             target_action=controller_manager,
@@ -108,6 +114,7 @@ def generate_launch_description():
             on_exit=[
                 diff_drive_spawner,
                 dome_controller_spawner,
+                dome_state_broadcaster_spawner,
             ],
         )
     )

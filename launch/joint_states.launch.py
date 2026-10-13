@@ -10,8 +10,9 @@ def generate_launch_description():
 
     use_sim_time = LaunchConfiguration('use_sim_time')
 
-    # joint_broad publishes on /joint_broad/joint_states (use_local_topics). This node
-    # merges it with the URDF (filling in mimic joints) and publishes /joint_states.
+    # joint_broad publishes on /joint_broad/joint_states (use_local_topics) and the dome
+    # servo device (or servo_sim in simulation) on /dome/joint_states. This node merges
+    # them with the URDF (filling in mimic joints) and publishes /joint_states.
     joint_state_publisher = Node(
         package="joint_state_publisher",
         executable="joint_state_publisher",
@@ -19,7 +20,7 @@ def generate_launch_description():
         parameters=[
             {
                 #'source_list': ['/joint_broad/joint_states', '/left_shoulder/position', '/right_shoulder/position'],
-                'source_list': ['/joint_broad/joint_states'],
+                'source_list': ['/joint_broad/joint_states', '/dome/joint_states'],
                 'zeros': {
                     'right_shoulder_joint': radians(0),
                     'right_ankle_joint': radians(0),

@@ -5,7 +5,7 @@ from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
-from launch.conditions import UnlessCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration
 from launch.actions import RegisterEventHandler
@@ -156,10 +156,25 @@ def generate_launch_description():
 
 
 
+    # Dome bench diagnostics node (ros2_roamadome). It finds the RoamADome hardware
+    # node by name: the ros2_control block "RoamADome" runs as /roamadome. Start
+    # sweeps with `ros2 service call /roamadome_bench/start_sensor_sweep std_srvs/srv/Trigger`
+    # (or start_speed_sweep), stop one with /roamadome_bench/abort and wait for it to
+    # finish before stopping the launch: on Ctrl-C the controller manager deactivates at
+    # the same time (sending :DPR0), so the node can stop the dome but usually cannot
+    # restore the speed settings it changed (see settings_before.json in the run
+    # directory). The longer sigterm_timeout lets it write its partial results first.
+    dome_bench_node = Node(
+        package='ros2_roamadome',
+        executable='roamadome_bench',
+        name='roamadome_bench',
+        output='screen',
+        parameters=[{'hardware_node': 'roamadome'}],
+        sigterm_timeout='15',
+        condition=IfCondition(dome_bench),
+    )
+
     # Launch them all!
-    # TODO(phase 5): when dome_bench is true, start the roamadome_bench node here
-    # (condition=IfCondition(dome_bench)). It is not added yet because the executable only
-    # exists after phase 5 and a missing executable aborts the launch.
     return LaunchDescription([
         dome_bench_arg,
         rsp,
@@ -171,5 +186,6 @@ def generate_launch_description():
         delay_robot_controller_spawner_after_joint_state_broadcaster_spawner,
         joint_states,
         dome_teleop,
+        dome_bench_node,
         web_interface
     ])

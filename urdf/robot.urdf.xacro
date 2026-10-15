@@ -3,6 +3,8 @@
 
     <xacro:arg name="use_ros2_control" default="true"/>
     <xacro:arg name="sim_mode" default="false"/>
+    <!-- Dome bench diagnostics: enables the RoamADome raw drive service and telemetry -->
+    <xacro:arg name="dome_bench" default="false"/>
 
     <xacro:include filename="$(find r2_description)/urdf/robot_core.xacro" />
 

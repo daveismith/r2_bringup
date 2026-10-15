@@ -27,6 +27,10 @@
                 <plugin>ros2_roamadome/RoamadomeControl</plugin>
                 <!--<param name="serial_port">/dev/ttyACM0</param>-->
                 <param name="serial_port">/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_34:85:18:8B:35:34-if00</param>
+                <xacro:if value="$(arg dome_bench)">
+                    <param name="enable_bench_mode">true</param>
+                    <param name="publish_telemetry">true</param>
+                </xacro:if>
             </hardware>
             <joint name="dome_joint">
                 <command_interface name="position" />

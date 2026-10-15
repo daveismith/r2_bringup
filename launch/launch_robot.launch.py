@@ -4,9 +4,10 @@ from ament_index_python.packages import get_package_share_directory
 
 
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
+from launch.conditions import UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command
+from launch.substitutions import Command, LaunchConfiguration
 from launch.actions import RegisterEventHandler
 from launch.event_handlers import OnProcessStart, OnProcessExit
 from launch_ros.actions import Node
@@ -19,13 +20,22 @@ def generate_launch_description():
     # Include the robot_state_publisher launch file, provided by our own package. Force sim time to be enabled
     # !!! MAKE SURE YOU SET THE PACKAGE NAME CORRECTLY !!!
 
+    # dome_bench:=true makes the RoamADome hardware offer its raw bench drive service and
+    # telemetry, and leaves the dome to the bench tooling: no dome_controller, no dome teleop.
+    dome_bench = LaunchConfiguration('dome_bench')
+    dome_bench_arg = DeclareLaunchArgument(
+        'dome_bench',
+        default_value='false',
+        description='Dome bench diagnostics: enable bench drive service, skip dome controller and teleop')
+
     package_name='r2_bringup' #<--- CHANGE ME
     web_package_name = 'r2_web_interface'
 
     rsp = IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([os.path.join(
                     get_package_share_directory(package_name),'launch','rsp.launch.py'
-                )]), launch_arguments={'use_sim_time': 'false', 'use_ros2_control': 'true'}.items()
+                )]), launch_arguments={'use_sim_time': 'false', 'use_ros2_control': 'true',
+                                  'dome_bench': dome_bench}.items()
     )
 
     joystick = IncludeLaunchDescription(
@@ -59,7 +69,8 @@ def generate_launch_description():
     dome_teleop = IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([os.path.join(
                     get_package_share_directory(package_name),'launch','dome_teleop.launch.py'
-                )]), launch_arguments={'use_sim_time': 'false'}.items()
+                )]), launch_arguments={'use_sim_time': 'false'}.items(),
+                condition=UnlessCondition(dome_bench)
     )
 
     web_interface = IncludeLaunchDescription(
@@ -91,6 +102,7 @@ def generate_launch_description():
         package="controller_manager",
         executable="spawner",
         arguments=["dome_controller"],
+        condition=UnlessCondition(dome_bench),
     )
 
     dome_state_broadcaster_spawner = Node(
@@ -145,7 +157,11 @@ def generate_launch_description():
 
 
     # Launch them all!
+    # TODO(phase 5): when dome_bench is true, start the roamadome_bench node here
+    # (condition=IfCondition(dome_bench)). It is not added yet because the executable only
+    # exists after phase 5 and a missing executable aborts the launch.
     return LaunchDescription([
+        dome_bench_arg,
         rsp,
         joystick,
         twist_mux,

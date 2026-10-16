@@ -15,6 +15,28 @@ sudo apt update
 sudo apt install python3-vcstool python3-colcon-common-extensions
 ```
 
+## Robot host setup
+
+Do these once on the robot's Pi (not on a development machine).
+
+- **Disable the automatic apt timers.** Ubuntu's `apt-daily` and
+  `apt-daily-upgrade` services run unattended package scans and upgrades at
+  random times. On the Pi they load the CPU and disk for 20 to 30 s, and one
+  such run coincided with a 1 s gap in the dome controller's position stream
+  while the controller manager was running (2026-10-16). Run updates by hand
+  instead:
+
+  ```bash
+  sudo systemctl disable --now apt-daily.timer apt-daily-upgrade.timer
+  sudo systemctl mask apt-daily.service apt-daily-upgrade.service
+  systemctl list-timers --all | grep apt-daily   # should list nothing active
+  ```
+
+- **Run the control stack at normal priority.** Anything started from a shell
+  that has been reniced (some tool environments run at nice 19) inherits that
+  priority, including `ros2_control_node`. Check with
+  `ps -o pid,ni,comm -C ros2_control_node`; it should show `0`.
+
 ## Pull all repositories with r2d2.repos
 
 From the workspace root:

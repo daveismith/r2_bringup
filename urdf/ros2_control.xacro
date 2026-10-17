@@ -27,6 +27,10 @@
                 <plugin>ros2_roamadome/RoamadomeControl</plugin>
                 <!--<param name="serial_port">/dev/ttyACM0</param>-->
                 <param name="serial_port">/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_34:85:18:8B:35:34-if00</param>
+                <!-- Hold a position report that implies more than this speed until the next
+                     report confirms it (a sensor-ring misread). 1.5 x the measured 6.65 rad/s
+                     (381 deg/s) top speed, docs/bench_results/2026-10-16-with-dome-new-plate.md. -->
+                <param name="max_plausible_deg_s">600</param>
                 <xacro:if value="$(arg dome_bench)">
                     <param name="enable_bench_mode">true</param>
                     <param name="publish_telemetry">true</param>

@@ -7,7 +7,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
 from launch.conditions import UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, LaunchConfiguration
+from launch.substitutions import LaunchConfiguration
 from launch.actions import RegisterEventHandler
 from launch.event_handlers import OnProcessStart, OnProcessExit
 from launch_ros.actions import Node
@@ -52,15 +52,17 @@ def generate_launch_description():
             remappings=[('/cmd_vel_out','/diff_cont/cmd_vel')]
         )
 
-    robot_description = Command(['ros2 param get --hide-type /robot_state_publisher robot_description'])
-
     controller_params_file = os.path.join(get_package_share_directory(package_name),'config','my_controllers.yaml')
 
+    # The controller manager takes the URDF from the /robot_description topic that
+    # robot_state_publisher publishes (ros2_control since Iron). It used to be passed as
+    # a parameter read back with `ros2 param get`, whose stdout occasionally carried a
+    # zenoh warning line; launch then failed with "Unable to parse the value of parameter
+    # robot_description as yaml".
     controller_manager = Node(
         package="controller_manager",
         executable="ros2_control_node",
-        parameters=[{'robot_description': robot_description},
-                    controller_params_file],
+        parameters=[controller_params_file],
         #arguments=['--ros-args', '--log-level', 'DEBUG'],
     )
 

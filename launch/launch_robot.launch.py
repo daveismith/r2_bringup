@@ -33,7 +33,8 @@ def generate_launch_description():
     personality_arg = DeclareLaunchArgument(
         'personality',
         default_value='true',
-        description='Start the personality stack (r2_affect mood model; see personality.launch.py)')
+        description='Start the personality stack (r2_affect mood model; '
+                    'see personality.launch.py)')
 
     package_name='r2_bringup' #<--- CHANGE ME
     web_package_name = 'r2_web_interface'
@@ -90,7 +91,7 @@ def generate_launch_description():
 
     personality_stack = IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([os.path.join(
-                    get_package_share_directory(package_name),'launch','personality.launch.py'
+                    get_package_share_directory(package_name), 'launch', 'personality.launch.py'
                 )]), launch_arguments={'use_sim_time': 'false'}.items(),
                 condition=IfCondition(personality)
     )

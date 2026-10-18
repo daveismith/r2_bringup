@@ -8,7 +8,8 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
@@ -30,13 +31,15 @@ def generate_launch_description():
             description='Path of the affect.yaml to load (reload with /mood/reload_config)'),
         DeclareLaunchArgument(
             'adapters', default_value='true',
-            description='Start the stimulus adapter nodes (none exist yet)'),
+            description='Start the stimulus adapters (drive, dome, buttons) of r2_stimulus'),
         DeclareLaunchArgument(
             'rate_hz', default_value='10.0',
             description='r2_affect tick and /mood/state publish rate'),
     ]
 
-    affect = IncludeLaunchDescription(
+    # Each include is scoped: affect.launch.py and adapters.launch.py both declare an
+    # argument called `config`, and an unscoped include would leak one into the other.
+    affect = GroupAction(scoped=True, actions=[IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(
             get_package_share_directory('r2_affect'), 'launch', 'affect.launch.py')),
         launch_arguments={
@@ -44,9 +47,13 @@ def generate_launch_description():
             'config': affect_config,
             'rate_hz': rate_hz,
         }.items(),
-    )
+    )])
 
-    # TODO(step 7): add the three adapter nodes of plan 5.5 here, each with
-    # condition=IfCondition(adapters). Not added yet: a missing executable aborts the launch.
+    stimulus_adapters = GroupAction(scoped=True, condition=IfCondition(adapters), actions=[
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(os.path.join(
+                get_package_share_directory('r2_stimulus'), 'launch', 'adapters.launch.py')),
+            launch_arguments={'use_sim_time': use_sim_time}.items(),
+        )])
 
-    return LaunchDescription(declared + [affect])
+    return LaunchDescription(declared + [affect, stimulus_adapters])

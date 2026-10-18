@@ -222,13 +222,13 @@ every mesh is drawn rotated 90°.
 
 ## Personality
 
-`launch/personality.launch.py` starts the personality stack: `r2_affect` (the mood model: `/stimuli` in, `/mood/state` out) now, and the stimulus adapters once they exist (the `adapters` argument, default `true`, is already declared). `launch_robot.launch.py` and `r2_sim`'s `launch_sim.launch.py` both include it by default, with `use_sim_time` false and true. Pass `personality:=false` to either to leave it out.
+`launch/personality.launch.py` starts the personality stack: `r2_affect` (the mood model: `/stimuli` in, `/mood/state` out) and, with `adapters` (default `true`), the three `r2_stimulus` adapters: `drive_stimulus` (from `/diff_cont/odom`: `being_driven`, `stopped`), `dome_stimulus` (from the dome joint state and command: `dome_pushed`) and `button_stimulus` (from `/dome/buttons/sequence`: `button_sequence`). The adapters only listen and publish `/stimuli`. `launch_robot.launch.py` and `r2_sim`'s `launch_sim.launch.py` both include it by default, with `use_sim_time` false and true. Pass `personality:=false` to either to leave it out.
 
 | argument | default | meaning |
 | --- | --- | --- |
 | `use_sim_time` | `false` | `true` with the sim: the model's timers follow `/clock` and stop while Gazebo is paused |
 | `affect_config` | `r2_affect`'s installed `config/affect.yaml` | the YAML to load |
-| `adapters` | `true` | start the stimulus adapters (none yet) |
+| `adapters` | `true` | start the stimulus adapters of `r2_stimulus` (thresholds in its `config/stimulus.yaml`) |
 | `rate_hz` | `10.0` | tick and `/mood/state` rate |
 
 The config lives in `r2_personality/r2_affect/config/affect.yaml`. With `--symlink-install` an edit is picked up by `ros2 service call /mood/reload_config std_srvs/srv/Trigger`, no restart needed. For the `mood` CLI (`mood watch`, `mood set`) see the `r2_affect` README; for the design see `docs/personality-architecture.md` in the r2_dev workspace.

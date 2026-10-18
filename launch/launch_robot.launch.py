@@ -5,7 +5,7 @@ from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable, TimerAction
-from launch.conditions import UnlessCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch.actions import RegisterEventHandler
@@ -27,6 +27,13 @@ def generate_launch_description():
         'dome_bench',
         default_value='false',
         description='Dome bench diagnostics: enable bench drive service, skip dome controller and teleop')
+
+    # personality:=false leaves out the personality stack (r2_affect and its adapters).
+    personality = LaunchConfiguration('personality')
+    personality_arg = DeclareLaunchArgument(
+        'personality',
+        default_value='true',
+        description='Start the personality stack (r2_affect mood model; see personality.launch.py)')
 
     package_name='r2_bringup' #<--- CHANGE ME
     web_package_name = 'r2_web_interface'
@@ -79,6 +86,13 @@ def generate_launch_description():
                 PythonLaunchDescriptionSource([os.path.join(
                     get_package_share_directory(web_package_name),'launch','web_interface.launch.py'
                 )]), launch_arguments={'use_sim_time': 'false', 'robot_mode': 'real'}.items()
+    )
+
+    personality_stack = IncludeLaunchDescription(
+                PythonLaunchDescriptionSource([os.path.join(
+                    get_package_share_directory(package_name),'launch','personality.launch.py'
+                )]), launch_arguments={'use_sim_time': 'false'}.items(),
+                condition=IfCondition(personality)
     )
 
     diff_drive_spawner = Node(
@@ -164,6 +178,7 @@ def generate_launch_description():
     # exists after phase 5 and a missing executable aborts the launch.
     return LaunchDescription([
         dome_bench_arg,
+        personality_arg,
         rsp,
         joystick,
         twist_mux,
@@ -173,5 +188,6 @@ def generate_launch_description():
         delay_robot_controller_spawner_after_joint_state_broadcaster_spawner,
         joint_states,
         dome_teleop,
-        web_interface
+        web_interface,
+        personality_stack,
     ])

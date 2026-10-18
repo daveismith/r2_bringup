@@ -220,6 +220,19 @@ In the 3D panel, turn on `/robot_description`, set the display frame to `base_li
 and under Scene set **Mesh up axis to Z**. R2's meshes are Z-up; with Foxglove's default (Y-up)
 every mesh is drawn rotated 90°.
 
+## Personality
+
+`launch/personality.launch.py` starts the personality stack: `r2_affect` (the mood model: `/stimuli` in, `/mood/state` out) now, and the stimulus adapters once they exist (the `adapters` argument, default `true`, is already declared). `launch_robot.launch.py` and `r2_sim`'s `launch_sim.launch.py` both include it by default, with `use_sim_time` false and true. Pass `personality:=false` to either to leave it out.
+
+| argument | default | meaning |
+| --- | --- | --- |
+| `use_sim_time` | `false` | `true` with the sim: the model's timers follow `/clock` and stop while Gazebo is paused |
+| `affect_config` | `r2_affect`'s installed `config/affect.yaml` | the YAML to load |
+| `adapters` | `true` | start the stimulus adapters (none yet) |
+| `rate_hz` | `10.0` | tick and `/mood/state` rate |
+
+The config lives in `r2_personality/r2_affect/config/affect.yaml`. With `--symlink-install` an edit is picked up by `ros2 service call /mood/reload_config std_srvs/srv/Trigger`, no restart needed. For the `mood` CLI (`mood watch`, `mood set`) see the `r2_affect` README; for the design see `docs/personality-architecture.md` in the r2_dev workspace.
+
 ## Joint state topics
 
 - `/joint_states`: every joint, merged by `joint_state_publisher` from `/joint_broad/joint_states` and the dome servo device's `/dome/joint_states`.

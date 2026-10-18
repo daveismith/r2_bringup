@@ -24,8 +24,7 @@ def generate_launch_description():
             package=package_name,
             executable='dome_twist_converter',
             name='dome_twist_converter',
-            parameters=[{'use_sim_time': use_sim_time}],
-            #remappings=[('/cmd_vel_', '/cmd_vel_dome')],
+            parameters=[dome_params, {'use_sim_time': use_sim_time}],
             output='screen'
          )
 

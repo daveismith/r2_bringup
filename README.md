@@ -172,6 +172,36 @@ Check the link from the laptop: with both routers running, `ros2 topic list` sho
 - Don't export `ZENOH_CONFIG_OVERRIDE` in `setup.bash`. It applies to every Zenoh process, so each node would connect to the robot directly instead of to its local router.
 - Don't keep a copied `DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5` or set `ZENOH_ROUTER_CONFIG_URI`. The launch file unsets `ZENOH_ROUTER_CONFIG_URI` so that the stock config, which is updated along with `rmw_zenoh_cpp`, is always used. Put any new router settings into the override list in `launch/launch_zenoh_router.launch.py`.
 
+## Dome teleop: joystick and Foxglove
+
+`dome_teleop.launch.py` (included by `launch_robot.launch.py` unless `dome_bench:=true`) runs
+`dome_teleop_node` (teleop_twist_joy: the right trigger, axis 3, as `linear.x` on
+`/cmd_vel_dome`, TwistStamped) and `dome_twist_converter`, which turns the command into the
+`Float64MultiArray` on `/dome_controller/commands` that the dome velocity controller reads.
+
+The converter also accepts a plain `geometry_msgs/Twist` on `/cmd_vel_dome_foxglove` from the
+Foxglove Teleop panel (which cannot publish stamped messages), and arbitrates between the two
+(`r2_bringup/dome_arbiter.py`, parameters under `dome_twist_converter` in
+`config/dome_teleop.yaml`):
+
+- **The joystick has precedence**: while its command is non-zero, and for `joystick_hold_s`
+  (0.5 s) after it returns to zero. During that hold its zeros are forwarded, so releasing the
+  trigger stops the dome even if Foxglove is pushing. Precedence is decided by the command
+  value, not by who published last, because teleop_twist_joy publishes a zero on every joy
+  message and would otherwise block Foxglove for ever.
+- **Foxglove drives the dome otherwise**, while its latest message is younger than
+  `foxglove_timeout_s` (0.5 s). The panel sends no stamp and no guaranteed zero on release, so
+  that timeout is what stops the dome when the panel stops publishing or disconnects.
+- The command is published from a 20 Hz timer, and one final zero when both sources are idle,
+  so a source that goes quiet always results in a stop. A joystick stream older than
+  `joystick_timeout_s` (joy_node gone) is ignored.
+
+Foxglove Teleop panel setup: topic `/cmd_vel_dome_foxglove`, message `geometry_msgs/Twist`,
+map the left and right buttons to `angular.z` -1 and +1 (`foxglove_field`), publish rate about
+10 Hz. The value is multiplied by `foxglove_scale` (rad/s per unit, -1.5 by default, the same
+sign convention as the joystick's `scale_linear` while the plugin's velocity sign is inverted;
+see the ros2_roamadome README).
+
 ## Joint state topics
 
 - `/joint_states`: every joint, merged by `joint_state_publisher` from `/joint_broad/joint_states` and the dome servo device's `/dome/joint_states`.

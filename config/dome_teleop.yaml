@@ -26,3 +26,24 @@ dome_teleop_node:
     # No enable button required for dome control
     require_enable_button: false
     publish_stamped_twist: true
+
+# Joystick and Foxglove arbitration for the dome velocity command (dome_twist_converter).
+# The joystick has precedence: while its command is non-zero, and for joystick_hold_s after
+# it returns to zero (its zeros stop the dome even if Foxglove is pushing). Otherwise the
+# Foxglove Teleop panel's plain Twist on foxglove_topic drives the dome until it is older
+# than foxglove_timeout_s, which is what stops the dome when the panel stops publishing.
+dome_twist_converter:
+  ros__parameters:
+    joystick_topic: cmd_vel_dome
+    joystick_field: linear.x
+    foxglove_topic: cmd_vel_dome_foxglove
+    # Foxglove Teleop panel: publish geometry_msgs/Twist on cmd_vel_dome_foxglove, map the
+    # left/right buttons to angular.z -1 / +1 (or any magnitude: it is multiplied by
+    # foxglove_scale, rad/s per unit; the sign matches the joystick's scale_linear).
+    foxglove_field: angular.z
+    foxglove_scale: -1.5
+    joystick_hold_s: 0.5
+    joystick_timeout_s: 0.5
+    foxglove_timeout_s: 0.5
+    publish_rate_hz: 20.0
+    output_topic: dome_controller/commands

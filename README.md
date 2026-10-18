@@ -198,9 +198,10 @@ Foxglove Teleop panel (which cannot publish stamped messages), and arbitrates be
 
 Foxglove Teleop panel setup: topic `/cmd_vel_dome_foxglove`, message `geometry_msgs/Twist`,
 map the left and right buttons to `angular.z` -1 and +1 (`foxglove_field`), publish rate about
-10 Hz. The value is multiplied by `foxglove_scale` (rad/s per unit, -1.5 by default, the same
-sign convention as the joystick's `scale_linear` while the plugin's velocity sign is inverted;
-see the ros2_roamadome README).
+10 Hz. The value is multiplied by `foxglove_scale` (rad/s per unit, 1.5 by default, like the
+joystick's `scale_linear`). Positive values turn the joint positive: the plugin's `velocity_map`
+handles the motor's inverted sign (`velocity_map.positive.percent_sign` -1, see the ros2_roamadome
+README), so no scale needs a negative sign any more.
 
 ## Viewing R2 in Foxglove
 

@@ -31,6 +31,19 @@
                      report confirms it (a sensor-ring misread). 1.5 x the measured 6.65 rad/s
                      (381 deg/s) top speed, docs/bench_results/2026-10-16-with-dome-new-plate.md. -->
                 <param name="max_plausible_deg_s">600</param>
+                <!-- Velocity mapping, measured 2026-10-17 after the dome realignment (MaxSpeed 80,
+                     MinSpeed 20, SpeedTarget 100). See "Re-tuning the velocity mapping when
+                     the dome changes" in the ros2_roamadome README. A positive joint velocity
+                     needs a negative percent, so percent_sign is -1 there. -->
+                <param name="max_speed_rad_per_sec">6.62</param>
+                <param name="velocity_map.positive.k_percent_per_rad_s">12.75</param>
+                <param name="velocity_map.positive.p0_percent">13.9</param>
+                <param name="velocity_map.positive.min_percent">20</param>
+                <param name="velocity_map.positive.percent_sign">-1</param>
+                <param name="velocity_map.negative.k_percent_per_rad_s">12.36</param>
+                <param name="velocity_map.negative.p0_percent">14.5</param>
+                <param name="velocity_map.negative.min_percent">22</param>
+                <param name="velocity_map.negative.percent_sign">1</param>
                 <xacro:if value="$(arg dome_bench)">
                     <param name="enable_bench_mode">true</param>
                     <param name="publish_telemetry">true</param>

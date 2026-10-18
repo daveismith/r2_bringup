@@ -229,6 +229,7 @@ every mesh is drawn rotated 90°.
 | `use_sim_time` | `false` | `true` with the sim: the model's timers follow `/clock` and stop while Gazebo is paused |
 | `affect_config` | `r2_affect`'s installed `config/affect.yaml` | the YAML to load |
 | `adapters` | `true` | start the stimulus adapters of `r2_stimulus` (thresholds in its `config/stimulus.yaml`) |
+| `stimulus_config` | `r2_stimulus`'s installed `config/stimulus.yaml` | the adapter thresholds (read at startup) |
 | `rate_hz` | `10.0` | tick and `/mood/state` rate |
 
 The config lives in `r2_personality/r2_affect/config/affect.yaml`. With `--symlink-install` an edit is picked up by `ros2 service call /mood/reload_config std_srvs/srv/Trigger`, no restart needed. For the `mood` CLI (`mood watch`, `mood set`) see the `r2_affect` README; for the design see `docs/personality-architecture.md` in the r2_dev workspace.

@@ -19,6 +19,7 @@ def generate_launch_description():
     affect_config = LaunchConfiguration('affect_config')
     adapters = LaunchConfiguration('adapters')
     rate_hz = LaunchConfiguration('rate_hz')
+    stimulus_config = LaunchConfiguration('stimulus_config')
 
     declared = [
         DeclareLaunchArgument(
@@ -32,6 +33,11 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'adapters', default_value='true',
             description='Start the stimulus adapters (drive, dome, buttons) of r2_stimulus'),
+        DeclareLaunchArgument(
+            'stimulus_config',
+            default_value=os.path.join(
+                get_package_share_directory('r2_stimulus'), 'config', 'stimulus.yaml'),
+            description='Path of the stimulus.yaml with the adapter thresholds'),
         DeclareLaunchArgument(
             'rate_hz', default_value='10.0',
             description='r2_affect tick and /mood/state publish rate'),
@@ -53,7 +59,10 @@ def generate_launch_description():
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(
                 get_package_share_directory('r2_stimulus'), 'launch', 'adapters.launch.py')),
-            launch_arguments={'use_sim_time': use_sim_time}.items(),
+            launch_arguments={
+                'use_sim_time': use_sim_time,
+                'config': stimulus_config,
+            }.items(),
         )])
 
     return LaunchDescription(declared + [affect, stimulus_adapters])

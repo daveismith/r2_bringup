@@ -202,6 +202,23 @@ map the left and right buttons to `angular.z` -1 and +1 (`foxglove_field`), publ
 sign convention as the joystick's `scale_linear` while the plugin's velocity sign is inverted;
 see the ros2_roamadome README).
 
+## Viewing R2 in Foxglove
+
+`foxglove.launch.py` runs `foxglove_bridge`. With the live robot, run it on the dev machine
+(the dev container's `foxglove` service does), not on the robot: `launch_robot.launch.py`
+already publishes `/robot_description`, a complete `/joint_states` and `/tf`, and the bridge
+serves the `package://` meshes from the dev machine's `r2_description`.
+
+| argument | default | meaning |
+| --- | --- | --- |
+| `port` | `8765` | WebSocket port for the Foxglove app |
+| `use_sim_time` | `false` | `true` with the sim: TF is stamped with `/clock` time, which a wall-clock bridge can't look up |
+| `name` | `foxglove_bridge` | node name; give a second bridge on the same graph its own |
+
+In the 3D panel, turn on `/robot_description`, set the display frame to `base_link` (or `odom`),
+and under Scene set **Mesh up axis to Z**. R2's meshes are Z-up; with Foxglove's default (Y-up)
+every mesh is drawn rotated 90°.
+
 ## Joint state topics
 
 - `/joint_states`: every joint, merged by `joint_state_publisher` from `/joint_broad/joint_states` and the dome servo device's `/dome/joint_states`.

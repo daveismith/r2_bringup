@@ -10,9 +10,9 @@ dome_teleop_node:
     axis_linear:
       x: 3
     scale_linear:
-      x: -1.5
+      x: 1.5
     scale_linear_turbo:
-      x: -3.0
+      x: 3.0
 
     # Disable yaw/angular control for dome
     axis_angular:
@@ -39,9 +39,10 @@ dome_twist_converter:
     foxglove_topic: cmd_vel_dome_foxglove
     # Foxglove Teleop panel: publish geometry_msgs/Twist on cmd_vel_dome_foxglove, map the
     # left/right buttons to angular.z -1 / +1 (or any magnitude: it is multiplied by
-    # foxglove_scale, rad/s per unit; the sign matches the joystick's scale_linear).
+    # foxglove_scale, rad/s per unit; a positive value turns the joint positive, like the
+    # joystick's scale_linear, because the plugin's velocity_map handles the motor sign).
     foxglove_field: angular.z
-    foxglove_scale: -1.5
+    foxglove_scale: 1.5
     joystick_hold_s: 0.5
     joystick_timeout_s: 0.5
     foxglove_timeout_s: 0.5

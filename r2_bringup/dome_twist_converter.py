@@ -45,7 +45,7 @@ class DomeTwistConverter(Node):
         self.declare_parameter('joystick_field', 'linear.x')
         self.declare_parameter('foxglove_topic', 'cmd_vel_dome_foxglove')
         self.declare_parameter('foxglove_field', 'angular.z')
-        self.declare_parameter('foxglove_scale', -1.5)
+        self.declare_parameter('foxglove_scale', 1.5)
         self.declare_parameter('joystick_hold_s', 0.5)
         self.declare_parameter('joystick_timeout_s', 0.5)
         self.declare_parameter('foxglove_timeout_s', 0.5)

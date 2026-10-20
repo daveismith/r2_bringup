@@ -1,3 +1,5 @@
+from typing import List
+
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
@@ -27,7 +29,7 @@ def generate_launch_description():
             # bridge holds a client for every matching service, so a bridge beside a real
             # dome device should exclude it (the sim passes '^(?!/r2_dome/).*').
             'service_whitelist': ParameterValue(
-                LaunchConfiguration('service_whitelist'), value_type=[str]),
+                LaunchConfiguration('service_whitelist'), value_type=List[str]),
         }]
     )
 

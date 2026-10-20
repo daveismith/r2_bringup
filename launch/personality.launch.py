@@ -62,8 +62,9 @@ def generate_launch_description():
             description='Start the dome device mock (r2_mocks) instead of relying on a real dome'),
         DeclareLaunchArgument(
             'dome_mock_name', default_value='r2_dome',
-            description='Node name of the mock, hence its namespace /<name>/. Use another name '
-                        'when a real /r2_dome is on the same graph'),
+            description='Node name of the mock, hence its namespace /<name>/ (and, unless it is '
+                        'r2_dome, the prefix of its /dome/text and /dome/audio topics). The sim '
+                        'passes dome_mock; r2_dome only on a machine with no real dome'),
         DeclareLaunchArgument(
             'device', default_value='',
             description="Dome device the arbiters talk to; empty: '/' + dome_mock_name with "

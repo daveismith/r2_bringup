@@ -224,7 +224,7 @@ every mesh is drawn rotated 90°.
 
 `launch/personality.launch.py` starts the personality stack: `r2_affect` (the mood model: `/stimuli` in, `/mood/state` out) and, with `adapters` (default `true`), the three `r2_stimulus` adapters: `drive_stimulus` (from `/diff_cont/odom`: `being_driven`, `stopped`), `dome_stimulus` (from the dome joint state and command: `dome_pushed`) and `button_stimulus` (from `/dome/buttons/sequence`: `button_sequence`). The adapters only listen and publish `/stimuli`. `launch_robot.launch.py` and `r2_sim`'s `launch_sim.launch.py` both include it by default, with `use_sim_time` false and true. Pass `personality:=false` to either to leave it out.
 
-It also starts the expression arbiters of `r2_expression` (`expression`, default `true`): `/led_arbiter` and `/magic_arbiter`, which own the dome's LEDs and Magic Panel and take claims through two services, `/expression/claim/led` and `/expression/claim/magic`. `express status` shows the four channels; the `express` CLI (`ros2 run r2_expression express ...`) is described in the `r2_expression` README. The arbiters talk to the dome device `/r2_dome`. In the sim, `dome_mock` is `true` and `r2_mocks`' dome mock stands in for the device. When a real dome is on the same graph (the workbench), launch the sim with `dome_mock_name:=dome_mock` so the mock does not collide with `/r2_dome`; on a machine without a dome the default keeps the device's real name, so everything else is identical.
+It also starts the expression arbiters of `r2_expression` (`expression`, default `true`): `/led_arbiter` and `/magic_arbiter`, which own the dome's LEDs and Magic Panel and take claims through two services, `/expression/claim/led` and `/expression/claim/magic`. `express status` shows the four channels; the `express` CLI (`ros2 run r2_expression express ...`) is described in the `r2_expression` README. The arbiters talk to the dome device `/r2_dome`. In the sim, `dome_mock` is `true` and `r2_mocks`' dome mock stands in for the device; the sim's mock is `/dome_mock` (the sim launch files default `dome_mock_name` to it, and the arbiters' `device` follows), so it never collides with a real dome on the same graph. Pass `dome_mock_name:=r2_dome` only on a machine with no real dome, if you want the device's real name. An arbiter refuses to start when another node of its name is already on the graph.
 
 | argument | default | meaning |
 | --- | --- | --- |
@@ -236,7 +236,7 @@ It also starts the expression arbiters of `r2_expression` (`expression`, default
 | `expression` | `true` | start the expression arbiters |
 | `expression_config` | `r2_expression`'s installed `config/expression.yaml` | the arbiter config |
 | `dome_mock` | `false` | start the dome mock of `r2_mocks` (the sim sets `true`) |
-| `dome_mock_name` | `r2_dome` | node name, hence namespace, of the mock |
+| `dome_mock_name` | `r2_dome` | node name, hence namespace, of the mock; the sim launch files pass `dome_mock` (the mock's `/dome/text/line*` and `/dome/audio/level` then live under `/dome_mock/dome/...`) |
 | `device` | empty | device the arbiters use; empty means `/` + `dome_mock_name` with the mock, else `/r2_dome` |
 
 The config lives in `r2_personality/r2_affect/config/affect.yaml`. With `--symlink-install` an edit is picked up by `ros2 service call /mood/reload_config std_srvs/srv/Trigger`, no restart needed. For the `mood` CLI (`mood watch`, `mood set`) see the `r2_affect` README; for the design see `docs/personality-architecture.md` in the r2_dev workspace.

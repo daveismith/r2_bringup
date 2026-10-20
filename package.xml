@@ -20,6 +20,8 @@
   <depend>r2_web_interface</depend>
   <exec_depend>r2_affect</exec_depend>
   <exec_depend>r2_stimulus</exec_depend>
+  <exec_depend>r2_expression</exec_depend>
+  <exec_depend>r2_mocks</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>

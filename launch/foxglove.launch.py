@@ -23,6 +23,11 @@ def generate_launch_description():
             'address': '0.0.0.0',
             'port': ParameterValue(LaunchConfiguration('port'), value_type=int),
             'use_sim_time': ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool),
+            # Services the bridge may call from its Service Call panels, as regexes. The
+            # bridge holds a client for every matching service, so a bridge beside a real
+            # dome device should exclude it (the sim passes '^(?!/r2_dome/).*').
+            'service_whitelist': ParameterValue(
+                LaunchConfiguration('service_whitelist'), value_type=[str]),
         }]
     )
 
@@ -35,6 +40,10 @@ def generate_launch_description():
             'use_sim_time',
             default_value='false',
             description='Use sim time if true (required with the sim)'),
+        DeclareLaunchArgument(
+            'service_whitelist',
+            default_value="['.*']",
+            description='Regexes of services the bridge may call; the sim excludes the real dome'),
         DeclareLaunchArgument(
             'name',
             default_value='foxglove_bridge',

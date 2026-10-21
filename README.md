@@ -37,6 +37,13 @@ Do these once on the robot's Pi (not on a development machine).
   priority, including `ros2_control_node`. Check with
   `ps -o pid,ni,comm -C ros2_control_node`; it should show `0`.
 
+- **Install the device rules and CAN interface files.** The udev rules, the two
+  `systemd-networkd` CAN files and the MCP2515 overlay in `config.txt` are listed, with
+  their contents and how to check them, in
+  [docs/robot-host-devices.md](docs/robot-host-devices.md). The two CAN buses are
+  `can_shoulder` and `can_odrive`, named by `.link` files there; the kernel's own `can0`
+  and `can1` swap between boots.
+
 ## Pull all repositories with r2d2.repos
 
 From the workspace root:

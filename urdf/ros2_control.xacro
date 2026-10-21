@@ -5,7 +5,7 @@
         <ros2_control name="ODriveInterface" type="system">
             <hardware>
                 <plugin>odrive_ros2_control_plugin/ODriveHardwareInterface</plugin>
-                <param name="can">can1</param>
+                <param name="can">can_odrive</param>
             </hardware>
 
             <joint name="left_wheel_joint">
@@ -59,7 +59,7 @@
         <ros2_control name="ShoulderSensors" type="system">
             <hardware>
                 <plugin>ros2_shoulder_sensor/MagneticAngleSensor</plugin>
-                <param name="can_interface">can0</param>
+                <param name="can_interface">can_shoulder</param>
                 <param name="stale_timeout_ms">200</param>
                 <param name="startup_timeout_ms">1000</param>
             </hardware>

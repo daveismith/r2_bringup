@@ -47,7 +47,7 @@ def generate_launch_description():
                 get_package_share_directory('r2_stimulus'), 'config', 'stimulus.yaml'),
             description='Path of the stimulus.yaml with the adapter thresholds'),
         DeclareLaunchArgument(
-            'rate_hz', default_value='10.0',
+            'rate_hz', default_value='5.0',
             description='r2_affect tick and /mood/state publish rate'),
         DeclareLaunchArgument(
             'expression', default_value='true',

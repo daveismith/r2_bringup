@@ -232,7 +232,7 @@ It also starts the expression arbiters of `r2_expression` (`expression`, default
 | `affect_config` | `r2_affect`'s installed `config/affect.yaml` | the YAML to load |
 | `adapters` | `true` | start the stimulus adapters of `r2_stimulus` (thresholds in its `config/stimulus.yaml`) |
 | `stimulus_config` | `r2_stimulus`'s installed `config/stimulus.yaml` | the adapter thresholds (read at startup) |
-| `rate_hz` | `10.0` | tick and `/mood/state` rate |
+| `rate_hz` | `5.0` | tick and `/mood/state` rate |
 | `expression` | `true` | start the expression arbiters |
 | `expression_config` | `r2_expression`'s installed `config/expression.yaml` | the arbiter config |
 | `dome_mock` | `false` | start the dome mock of `r2_mocks` (the sim sets `true`) |

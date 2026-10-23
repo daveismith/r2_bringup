@@ -21,11 +21,14 @@ The joystick (TwistStamped), the Foxglove Teleop panel (plain Twist) and the per
 controller reads, in that order of precedence; only the personality is speed and
 acceleration capped. See ``r2_bringup.dome_arbiter`` for the rules. Who drove the dome is
 published as ``astromech_msgs/DomeCommandStatus`` on every source change and at ``status_hz``.
+On SIGINT/SIGTERM (or an exception) one final zero is published before the node closes: the
+controller holds its last command and the motor driver has no timeout.
 The command is published from a timer, so a source that goes quiet is timed
 out and the dome stopped even if no message ever says so; one final zero is
 sent when all sources are idle (a personality timeout stops the dome at once, unramped).
 """
 
+import signal
 import time
 
 from astromech_msgs.msg import DomeCommandStatus
@@ -36,10 +39,15 @@ from r2_bringup.dome_arbiter import DomeCommandArbiter
 from r2_bringup.dome_arbiter import SOURCE_IDLE
 from r2_bringup.dome_arbiter import twist_field
 import rclpy
+from rclpy.duration import Duration
+from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from rclpy.qos import ReliabilityPolicy
+from rclpy.signals import SignalHandlerOptions
 from std_msgs.msg import Float64MultiArray
+
+CLOSE_ACK_S = 0.2   # how long the final 0 gets to leave before the session closes
 
 
 class DomeTwistConverter(Node):
@@ -59,7 +67,8 @@ class DomeTwistConverter(Node):
         self.declare_parameter('personality_field', 'angular.z')
         self.declare_parameter('personality_timeout_s', 0.5)
         self.declare_parameter('personality_max_speed_rad_s', 2.0)
-        self.declare_parameter('personality_max_accel_rad_s2', 4.0)
+        self.declare_parameter('personality_max_accel_rad_s2', 6.0)
+        self.declare_parameter('personality_min_speed_rad_s', 0.6)
         self.declare_parameter('publish_rate_hz', 20.0)
         self.declare_parameter('status_hz', 2.0)
         self.declare_parameter('status_topic', 'dome/cmd/status')
@@ -75,6 +84,9 @@ class DomeTwistConverter(Node):
                      'personality_max_accel_rad_s2', 'publish_rate_hz', 'status_hz'):
             if not float(p(name).value) > 0.0:
                 raise ValueError('%s must be > 0, got %r' % (name, p(name).value))
+        if not float(p('personality_min_speed_rad_s').value) >= 0.0:
+            raise ValueError('personality_min_speed_rad_s must be >= 0, got %r' %
+                             p('personality_min_speed_rad_s').value)
         for field in (self._joystick_field, self._foxglove_field, self._personality_field):
             twist_field(Twist(), field)   # validates the field name
         self._arbiter = DomeCommandArbiter(
@@ -84,6 +96,7 @@ class DomeTwistConverter(Node):
             personality_timeout_s=float(p('personality_timeout_s').value),
             personality_max_speed_rad_s=float(p('personality_max_speed_rad_s').value),
             personality_max_accel_rad_s2=float(p('personality_max_accel_rad_s2').value),
+            personality_min_speed_rad_s=float(p('personality_min_speed_rad_s').value),
             max_tick_s=2.0 / float(p('publish_rate_hz').value))   # one missed tick allowed
         self._last_decision = Decision(0.0, SOURCE_IDLE)
 
@@ -102,12 +115,13 @@ class DomeTwistConverter(Node):
         self.get_logger().info(
             'Dome command arbiter: joystick %s (%s) has precedence, Foxglove %s (%s x %.2f), '
             'hold %.2f s, timeouts %.2f / %.2f s, personality %s (%s, timeout %.2f s, '
-            '|v| <= %.2f rad/s, |a| <= %.2f rad/s2), output %s' % (
+            '%.2f <= |v| <= %.2f rad/s, |a| <= %.2f rad/s2), output %s' % (
                 p('joystick_topic').value, self._joystick_field, p('foxglove_topic').value,
                 self._foxglove_field, self._foxglove_scale, self._arbiter.joystick_hold_s,
                 self._arbiter.joystick_timeout_s, self._arbiter.foxglove_timeout_s,
                 p('personality_topic').value, self._personality_field,
-                self._arbiter.personality_timeout_s, self._arbiter.personality_max_speed_rad_s,
+                self._arbiter.personality_timeout_s, self._arbiter.personality_min_speed_rad_s,
+                self._arbiter.personality_max_speed_rad_s,
                 self._arbiter.personality_max_accel_rad_s2, p('output_topic').value))
 
     def _on_joystick(self, msg: TwistStamped):
@@ -138,6 +152,18 @@ class DomeTwistConverter(Node):
         msg.data = [decision.velocity]
         self._publisher.publish(msg)
 
+    def stop_dome(self):
+        """Publish one 0 and give it a moment to leave (the controller holds its last value)."""
+        msg = Float64MultiArray()
+        msg.data = [0.0]
+        try:
+            self._publisher.publish(msg)
+            if self._publisher.wait_for_all_acked(Duration(seconds=CLOSE_ACK_S)):
+                return
+        except Exception:   # the context may be gone already, or the RMW has no acks
+            pass
+        time.sleep(CLOSE_ACK_S)   # no ack: give the 0 a moment to leave anyway
+
     def _publish_status(self):
         msg = DomeCommandStatus()
         msg.header.stamp = self.get_clock().now().to_msg()
@@ -147,16 +173,39 @@ class DomeTwistConverter(Node):
         self._status_publisher.publish(msg)
 
 
+def _interrupt(signum, frame):
+    """End the spin loop; a second signal must not break the closing."""
+    for each in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(each, signal.SIG_IGN)
+    raise KeyboardInterrupt
+
+
 def main(args=None):
-    rclpy.init(args=args)
-    node = DomeTwistConverter()
+    # rclpy's own handlers shut the context down first, and then the final 0 could not be
+    # published; here a signal only ends the spin loop and the node closes afterwards.
+    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
+    for signum in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(signum, _interrupt)
+    node = None
+    executor = None
     try:
-        rclpy.spin(node)
+        node = DomeTwistConverter()
+        executor = SingleThreadedExecutor()
+        executor.add_node(node)
+        while rclpy.ok():
+            executor.spin_once(timeout_sec=0.5)   # a timeout, so a signal is noticed when idle
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
-        rclpy.try_shutdown()
+        if node is not None:
+            node.stop_dome()
+            if executor is not None:
+                executor.shutdown(timeout_sec=0)
+            node.destroy_node()
+        try:
+            rclpy.try_shutdown()
+        except RuntimeError:   # a session that is slow to close is not a failure
+            pass
 
 
 if __name__ == '__main__':

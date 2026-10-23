@@ -11,6 +11,7 @@ def generate_launch_description():
     package_name = 'r2_bringup'
     use_sim_time = LaunchConfiguration('use_sim_time')
     personality_max_speed = LaunchConfiguration('personality_max_speed_rad_s')
+    personality_min_speed = LaunchConfiguration('personality_min_speed_rad_s')
 
     dome_params = os.path.join(get_package_share_directory(package_name),'config','dome_teleop.yaml')
 
@@ -29,7 +30,9 @@ def generate_launch_description():
             parameters=[dome_params, {
                 'use_sim_time': use_sim_time,
                 'personality_max_speed_rad_s': ParameterValue(
-                    personality_max_speed, value_type=float)}],
+                    personality_max_speed, value_type=float),
+                'personality_min_speed_rad_s': ParameterValue(
+                    personality_min_speed, value_type=float)}],
             output='screen'
          )
 
@@ -42,6 +45,10 @@ def generate_launch_description():
             'personality_max_speed_rad_s',
             default_value='2.0',
             description='Speed cap (rad/s) the dome converter puts on the personality input'),
+        DeclareLaunchArgument(
+            'personality_min_speed_rad_s',
+            default_value='0.6',
+            description='Dead-band floor (rad/s): a personality move starts at this speed'),
         dome_teleop_node,
         dome_twist_converter
     ])

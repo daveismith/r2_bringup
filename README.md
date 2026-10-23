@@ -212,17 +212,32 @@ Foxglove Teleop panel (which cannot publish stamped messages), and arbitrates be
 - **Only the personality is capped**: |v| at most `personality_max_speed_rad_s` (2.0; the
   `personality_max_speed_rad_s` launch argument of `dome_teleop.launch.py` overrides it, so the
   robot and the sim can differ; `launch_robot.launch.py` and the sim's `launch_sim.launch.py` set it, default 2.0), and the change per tick at most `personality_max_accel_rad_s2`
-  (4.0) times the tick, counted from the value last *sent* by any source (a joystick release
-  does not let the personality jump; a cold start to 2 rad/s takes 0.5 s). Only increases in
+  (6.0, so a 4 rad/s^2 profile from a 20 Hz clock out of phase with the converter's is never
+  flagged) times the tick, counted from the value last *sent* by any source (a joystick release
+  does not let the personality jump; a cold start to 2 rad/s takes about 0.3 s). Only increases in
   magnitude are limited: braking (a smaller value of the same sign, or 0) is applied at once, a
-  reversal goes to 0 at once and then ramps up, and a timeout or takeover is immediate. The joystick and Foxglove are not capped here.
+  reversal goes to 0 at once and then ramps up, and a timeout or takeover is immediate. The
+  joystick and Foxglove are not capped here.
+- **The dead-band floor**: the real dome's motor does nothing below about 0.44 rad/s positive and
+  0.57 negative, so a ramp through those values would count as "commanded" while the motor gets
+  0 %. When the last value sent is below `personality_min_speed_rad_s` (0.6; a launch argument
+  of `dome_teleop.launch.py`) and the wanted magnitude is at or above it, the first step jumps
+  to the floor with the wanted sign and the ramp starts from there; a reversal passes through 0
+  and then jumps to the floor. `capped` in the status is true only when the speed cap clipped the
+  value or the acceleration limit held it back by more than one tick's allowance, never for the
+  floor jump alone.
+- **Shutdown**: on SIGINT or SIGTERM (and on an exception) the converter publishes one final 0 on
+  the output topic and gives it up to 0.2 s to leave before closing, because the
+  ForwardCommandController holds its last command and the motor driver has no timeout. A second
+  signal while closing is ignored. SIGKILL (or a power loss) cannot send a 0: the dome keeps
+  turning at the last command, up to 2 rad/s (a risk carried in the phase 2 plan's risk list).
 - **Status**: `astromech_msgs/DomeCommandStatus` on `/dome/cmd/status` (reliable, depth 1) with
   `source` (`idle`, `joystick`, `foxglove`, `personality`), `velocity_rad_s` (what was sent) and
   `capped`, on every source change and at `status_hz` (2.0) otherwise.
 
 Parameters (`config/dome_teleop.yaml`): the joystick and Foxglove ones above, plus
 `personality_topic`, `personality_field`, `personality_timeout_s`, `personality_max_speed_rad_s`,
-`personality_max_accel_rad_s2`, `status_topic`, `status_hz`.
+`personality_max_accel_rad_s2`, `personality_min_speed_rad_s`, `status_topic`, `status_hz`.
 
 Foxglove Teleop panel setup: topic `/cmd_vel_dome_foxglove`, message `geometry_msgs/Twist`,
 map the left and right buttons to `angular.z` -1 and +1 (`foxglove_field`), publish rate about

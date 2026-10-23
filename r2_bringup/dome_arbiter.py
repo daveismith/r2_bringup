@@ -35,7 +35,12 @@ published last:
   to ``personality_max_accel_rad_s2`` times the time since the previous decision (at most
   ``max_tick_s``), so a joystick release does not let the personality jump. Only increases
   in magnitude are rate limited: braking (smaller, same sign, or 0) is applied at once and a
-  reversal goes to 0 at once, then ramps up.
+  reversal goes to 0 at once, then ramps up. The real dome's motor has a dead band, so a
+  non-zero value below ``personality_min_speed_rad_s`` does nothing: when the last value sent
+  is below that floor and the wanted magnitude is at or above it, the first step jumps to the
+  floor (with the wanted sign) and the ramp starts from there.
+  ``Decision.capped`` is true only when the speed cap clipped the value or the acceleration
+  limit held it back by more than one tick's allowance (never for the floor jump alone).
 * Otherwise the command is zero (``idle``).
 
 NaN and infinite values are treated as 0. Times are seconds from any monotonic clock; the
@@ -70,13 +75,15 @@ class DomeCommandArbiter:
 
     def __init__(self, joystick_hold_s=0.5, joystick_timeout_s=0.5, foxglove_timeout_s=0.5,
                  personality_timeout_s=0.5, personality_max_speed_rad_s=2.0,
-                 personality_max_accel_rad_s2=4.0, max_tick_s=0.1, zero_epsilon=1e-6):
+                 personality_max_accel_rad_s2=6.0, max_tick_s=0.1, zero_epsilon=1e-6,
+                 personality_min_speed_rad_s=0.6):
         self.joystick_hold_s = float(joystick_hold_s)
         self.joystick_timeout_s = float(joystick_timeout_s)
         self.foxglove_timeout_s = float(foxglove_timeout_s)
         self.personality_timeout_s = float(personality_timeout_s)
         self.personality_max_speed_rad_s = float(personality_max_speed_rad_s)
         self.personality_max_accel_rad_s2 = float(personality_max_accel_rad_s2)
+        self.personality_min_speed_rad_s = float(personality_min_speed_rad_s)
         self.max_tick_s = float(max_tick_s)
         self.zero_epsilon = float(zero_epsilon)
         self._joy_value = 0.0
@@ -143,16 +150,24 @@ class DomeCommandArbiter:
 
     def _capped_personality(self, dt):
         limit = self.personality_max_speed_rad_s
+        floor = self.personality_min_speed_rad_s
         wanted = max(-limit, min(limit, self._per_value))
         last = self._last_sent
+        step = self.personality_max_accel_rad_s2 * dt
         if abs(wanted) <= abs(last) and wanted * last >= 0.0:
             value = wanted   # braking (same sign, smaller, or 0) is never slowed
         elif wanted * last < 0.0:
-            value = 0.0      # a reversal passes through 0 at once, then ramps up
+            value = 0.0      # a reversal passes through 0 at once, then jumps to the floor
         else:
-            step = self.personality_max_accel_rad_s2 * dt
-            value = min(wanted, last + step) if wanted > 0.0 else max(wanted, last - step)
-        return Decision(value, SOURCE_PERSONALITY, abs(value - self._per_value) > 1e-9)
+            if abs(last) < floor <= abs(wanted):
+                value = math.copysign(floor, wanted)   # the dead band: start at the floor
+            elif wanted > 0.0:
+                value = min(wanted, last + step)
+            else:
+                value = max(wanted, last - step)
+        speed_clipped = abs(self._per_value) > limit + 1e-9
+        held_back = abs(wanted) - abs(value) > step + 1e-9
+        return Decision(value, SOURCE_PERSONALITY, speed_clipped or held_back)
 
 
 def twist_field(twist, field):

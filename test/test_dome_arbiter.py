@@ -176,7 +176,7 @@ def test_personality_speed_cap():
     a = DomeCommandArbiter(personality_max_speed_rad_s=2.0, personality_max_accel_rad_s2=1000.0)
     d = run(a, 0.0, 0.1, value=5.0)[-1]
     assert d == Decision(2.0, SOURCE_PERSONALITY, True)
-    d = run(a, 0.15, 0.2, value=-5.0)[-1]
+    d = run(a, 0.15, 0.25, value=-5.0)[-1]   # 0, the floor, then the cap
     assert d == Decision(-2.0, SOURCE_PERSONALITY, True)
 
 
@@ -185,14 +185,97 @@ def test_personality_below_caps_is_not_flagged():
     assert run(a, 0.0, 0.1, value=1.0)[-1] == Decision(1.0, SOURCE_PERSONALITY, False)
 
 
-def test_personality_acceleration_cap_cold_start_takes_half_a_second():
-    a = DomeCommandArbiter()   # 2 rad/s, 4 rad/s2
+def test_personality_cold_start_jumps_to_the_floor_then_ramps():
+    a = DomeCommandArbiter()   # 2 rad/s, 6 rad/s2, floor 0.6
     a.decide(0.0)
     ds = run(a, 0.05, 0.6, value=2.0, dt=0.05)
-    assert ds[0].velocity == pytest.approx(0.2) and ds[0].capped
-    assert ds[1].velocity == pytest.approx(0.4)
-    assert ds[9].velocity == pytest.approx(2.0) and not ds[9].capped   # t = 0.5
-    assert all(abs(y.velocity - x.velocity) <= 0.2 + 1e-9 for x, y in zip(ds, ds[1:]))
+    assert ds[0].velocity == pytest.approx(0.6)
+    assert ds[0].capped                       # 2.0 asked, 1.4 short of it is > one tick
+    assert ds[1].velocity == pytest.approx(0.9)
+    assert ds[5].velocity == pytest.approx(2.0) and not ds[5].capped
+    assert all(abs(d.velocity) >= 0.6 for d in ds)
+    assert all(abs(y.velocity - x.velocity) <= 0.3 + 1e-9 for x, y in zip(ds[1:], ds[2:]))
+
+
+@pytest.mark.parametrize('sign', [1.0, -1.0])
+def test_floor_jump_from_zero_in_both_directions(sign):
+    a = DomeCommandArbiter()
+    a.decide(0.0)
+    a.personality(sign * 0.6, 0.05)
+    assert a.decide(0.05) == Decision(sign * 0.6, SOURCE_PERSONALITY, False)
+    b = DomeCommandArbiter()
+    b.decide(0.0)
+    b.personality(sign * 1.0, 0.05)
+    d = b.decide(0.05)
+    assert d.velocity == pytest.approx(sign * 0.6)    # min(|wanted|, floor)
+
+
+def test_reversal_goes_to_zero_then_jumps_to_the_floor():
+    a = DomeCommandArbiter()
+    run(a, 0.0, 1.0, value=1.0)
+    a.personality(-1.0, 1.05)
+    assert a.decide(1.05).velocity == 0.0
+    a.personality(-1.0, 1.1)
+    assert a.decide(1.1).velocity == pytest.approx(-0.6)
+
+
+def test_no_floor_jump_when_wanted_is_below_the_floor():
+    a = DomeCommandArbiter()
+    a.decide(0.0)
+    a.personality(0.3, 0.05)
+    assert a.decide(0.05).velocity == pytest.approx(0.3)
+
+
+def test_floor_can_be_disabled():
+    a = DomeCommandArbiter(personality_min_speed_rad_s=0.0, personality_max_accel_rad_s2=4.0)
+    a.decide(0.0)
+    a.personality(2.0, 0.05)
+    assert a.decide(0.05).velocity == pytest.approx(0.2)
+
+
+def test_capped_is_false_for_a_floor_start_and_a_gentle_ramp():
+    a = DomeCommandArbiter()
+    a.decide(0.0)
+    t = 0.05
+    wanted = 0.6
+    ds = []
+    while wanted < 1.0:
+        a.personality(wanted, t)
+        ds.append(a.decide(t))
+        wanted += 1.5 * 0.05
+        t += 0.05
+    a.personality(1.0, t)
+    ds.append(a.decide(t))
+    assert [d.capped for d in ds] == [False] * len(ds)
+    assert ds[-1].velocity == pytest.approx(1.0)
+
+
+def test_capped_is_false_for_a_4_rad_s2_profile_out_of_phase():
+    a = DomeCommandArbiter()
+    a.decide(0.0)
+    t = 0.0
+    wanted = 0.6
+    for k in range(20):
+        t += 0.05
+        # the personality's value is one clock behind the converter's tick
+        a.personality(wanted, t - 0.049)
+        d = a.decide(t)
+        assert not d.capped, (k, d)
+        wanted = min(2.0, wanted + 4.0 * 0.05)   # a 4 rad/s2 profile sampled every 0.05 s
+
+
+def test_capped_is_true_when_the_speed_cap_clips():
+    a = DomeCommandArbiter(personality_max_speed_rad_s=2.0)
+    d = run(a, 0.0, 1.0, value=3.0)[-1]
+    assert d == Decision(2.0, SOURCE_PERSONALITY, True)
+
+
+def test_capped_is_true_when_a_20_rad_s2_jump_is_clipped():
+    a = DomeCommandArbiter()
+    run(a, 0.0, 0.5, value=0.6)
+    a.personality(1.6, 0.55)
+    d = a.decide(0.55)
+    assert d.velocity == pytest.approx(0.9) and d.capped
 
 
 def test_acceleration_cap_counts_from_the_last_value_sent_after_a_joystick_release():
@@ -214,7 +297,7 @@ def test_acceleration_cap_counts_from_the_last_value_sent_after_a_joystick_relea
         a.personality(2.0, t)
         ds.append(a.decide(t))
     first = next(d for d in ds if d.source == SOURCE_PERSONALITY)
-    assert first.velocity == pytest.approx(0.2)   # from the 0 the joystick sent, not from 2.0
+    assert first.velocity == pytest.approx(0.6)   # from the 0 the joystick sent: the floor
     assert first.capped
 
 
@@ -226,9 +309,9 @@ def test_acceleration_cap_from_a_joystick_value_it_took_over_from():
     # joystick stream dies: its timeout passes, personality asks 0 -> still ramps from last sent
     a.personality(-2.0, 0.6)
     d = a.decide(0.6)   # last sent 1.5: a reversal goes through 0 at once
-    assert d == Decision(0.0, SOURCE_PERSONALITY, True)
+    assert d.velocity == 0.0 and d.source == SOURCE_PERSONALITY
     a.personality(-2.0, 0.65)
-    assert a.decide(0.65).velocity == pytest.approx(-0.2)
+    assert a.decide(0.65).velocity == pytest.approx(-0.6)
 
 
 def test_braking_is_not_rate_limited_and_a_reversal_passes_through_zero():
@@ -245,7 +328,7 @@ def test_braking_is_not_rate_limited_and_a_reversal_passes_through_zero():
     b.personality(-1.0, 1.05)
     assert b.decide(1.05).velocity == 0.0
     b.personality(-1.0, 1.1)
-    assert b.decide(1.1).velocity == pytest.approx(-0.2)
+    assert b.decide(1.1).velocity == pytest.approx(-0.6)
 
 
 def test_decelerating_to_a_stop_by_timeout_is_not_rate_limited():

@@ -44,7 +44,10 @@ _counter = 0
 def ros_context():
     rclpy.init()
     yield
-    rclpy.try_shutdown()
+    try:
+        rclpy.try_shutdown()
+    except RuntimeError:   # this container's zenoh session close can time out
+        pass
 
 
 class Harness:
@@ -116,10 +119,14 @@ class Harness:
 
     def close(self):
         try:
-            os.killpg(self.proc.pid, signal.SIGINT)
-            self.proc.wait(timeout=10)
+            if self.proc.poll() is None:
+                os.killpg(self.proc.pid, signal.SIGINT)
+            self.proc.wait(timeout=15)
         except (ProcessLookupError, subprocess.TimeoutExpired):
-            os.killpg(self.proc.pid, signal.SIGKILL)
+            try:
+                os.killpg(self.proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
         self.proc.stdout.close()
         self.executor.remove_node(self.node)
         self.node.destroy_node()
@@ -148,8 +155,11 @@ def test_personality_is_capped_streams_at_20hz_and_stops_with_one_zero(harness):
     sent = [t for t, v in h.commands]
     values = [v for t, v in h.commands]
     assert max(values) == pytest.approx(2.0)          # capped to the default 2.0 rad/s
-    # 4 rad/s2 x at most max_tick_s (0.1) per tick, whatever the timer jitter
-    assert all(abs(b - a) <= 0.41 for a, b in zip(values, values[1:])), values
+    # 6 rad/s2 x at most max_tick_s (0.1) per tick, whatever the timer jitter, and the
+    # first step from 0 jumps to the 0.6 rad/s floor
+    assert all(abs(b - a) <= 0.61 for a, b in zip(values, values[1:])), values
+    # rule 4 at the controller input: nothing non-zero below the dead-band floor
+    assert all(abs(v) >= 0.6 - 1e-9 for v in values if v != 0.0), values
     rate = (len(sent) - 1) / (sent[-1] - sent[0])
     assert 14.0 < rate < 24.0, rate
     assert any(s == 'personality' and capped for _, s, _, capped in h.statuses), h.statuses
@@ -177,3 +187,26 @@ def test_joystick_takes_over_and_the_status_follows_within_a_tick(harness):
     assert velocity == pytest.approx(1.25) and not capped
     # the joystick is not capped or ramped
     assert h.wait_for(lambda: h.commands[-1][1] == pytest.approx(1.25), 1.0)
+
+
+def test_sigint_sends_a_final_zero_before_exiting(harness):
+    h = harness
+    h.wait_started()
+    stream(h, h.per, 1.5, 1.0)
+    assert h.commands[-1][1] != 0.0
+    h.commands.clear()
+    # The personality is still "fresh" (0.5 s timeout), so a 0 in the next 0.5 s is the
+    # shutdown's, not the timeout's: signal at once and check how quickly it arrives.
+    h.publish(h.per, 1.5)
+    h.spin(0.05)
+    t0 = time.monotonic()
+    os.killpg(h.proc.pid, signal.SIGINT)
+    assert h.wait_for(lambda: any(v == 0.0 for _, v in h.commands), 0.5), h.commands
+    assert next(t for t, v in h.commands if v == 0.0) - t0 < 0.5
+    # Exit: this container's zenoh session close can take ~10 s, so the exit time alone does
+    # not fail the test; only a non-zero exit code does (and a hang past 15 s).
+    try:
+        code = h.proc.wait(timeout=15)
+    except subprocess.TimeoutExpired:
+        pytest.skip('the 0 arrived but the process took over 15 s to exit (zenoh close)')
+    assert code == 0, h.log()

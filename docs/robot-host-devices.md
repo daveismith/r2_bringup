@@ -152,9 +152,25 @@ GPIO12; `dtparam=spi=on` must also be set. The overlay asks for a level-low inte
 (`interrupts = <12 8>`), and on this kernel that interrupt fires about 100 times per
 received frame (each run finds nothing to do and costs about 9 us). Raising
 `spimaxfrequency` to 10 MHz was tried on 2026-10-20: each run was barely shorter and
-there were more of them, 30 % of a core against 22 %, so it goes back to 2 MHz. Next to try:
-the same overlay with a falling-edge interrupt (`<12 2>`), watched for an hour for missed
-frames; failing that, a second USB candleLight adapter for the shoulder bus.
+there were more of them, 30 % of a core against 22 %, so it went back to 2 MHz.
+
+A falling-edge interrupt was tried on 2026-10-21 with a copy of the stock overlay whose
+only change was the trigger cell, `interrupts = <25 2>` (`IRQ_TYPE_EDGE_FALLING`) in place of
+`<25 8>` (decompile the stock one with `dtc -I dtb -O dts`, change the cell, rebuild with
+`dtc -@ -I dts -O dtb`). It loaded (`/proc/interrupts` showed `Edge`) but **not one interrupt was
+delivered**, and the shoulder bus received nothing, even after
+`ip link set can_shoulder down` / `up`, which resets the chip so the next frame gives a fresh
+falling edge. So on this kernel the RP1 delivers no falling-edge interrupts on GPIO12, and
+its level interrupt re-fires: both point at the kernel's `pinctrl-rp1` interrupt handling,
+not the MCP2515. Rolled back to the stock overlay the same night, and the test overlay removed. No newer `linux-raspi` kernel or Pi EEPROM was
+available then, so the cost (about 22 % of a core) is accepted for now.
+
+To retry after a kernel or Ubuntu upgrade: boot the stock overlay and compare interrupts to
+frames (`grep spi0.0 /proc/interrupts` against `can_shoulder`'s `rx_packets` over 10 s);
+about 100 per frame means it is unchanged, close to 1 means fixed. If it has improved, an
+edge-triggered overlay built as above is worth one more try, with an hour's watch for a stalled bus. The other way
+out is a second USB candleLight adapter for the shoulder bus, named by its serial number in
+the `.link` file (both adapters would use `gs_usb`).
 
 Check after a reboot:
 

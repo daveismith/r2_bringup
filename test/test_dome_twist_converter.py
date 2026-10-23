@@ -69,7 +69,8 @@ class Harness:
                          ('dome_controller/commands', self.out_topic),
                          ('dome/cmd/status', self.status_topic)):
             remaps += ['-r', '%s:=%s' % (old, new)]
-        argv = [sys.executable, SCRIPT, '--ros-args', '-r', '__node:=%s_conv' % ns] + remaps
+        self.node_name = '%s_conv' % ns
+        argv = [sys.executable, SCRIPT, '--ros-args', '-r', '__node:=' + self.node_name] + remaps
         self.proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                      text=True, start_new_session=True)
         self.node = rclpy.create_node('%s_probe' % ns)
@@ -210,3 +211,22 @@ def test_sigint_sends_a_final_zero_before_exiting(harness):
     except subprocess.TimeoutExpired:
         pytest.skip('the 0 arrived but the process took over 15 s to exit (zenoh close)')
     assert code == 0, h.log()
+
+
+def test_rule1_the_converter_is_the_only_publisher_of_the_controller_commands(harness):
+    # Phase 2 rule 1, here without a personality node; r2_expression's dome node tests
+    # repeat it with the arbiter on the graph.
+    harness.wait_started()
+
+    def publishers():
+        return {i.node_name for i in harness.node.get_publishers_info_by_topic(
+            harness.out_topic)}
+
+    def topics():
+        return {name for name, _ in
+                harness.node.get_publisher_names_and_types_by_node(harness.node_name, '/')}
+    expected = {harness.out_topic, harness.status_topic, '/rosout', '/parameter_events'}
+    # Each graph entity is discovered on its own: wait for the whole set, then compare.
+    harness.wait_for(lambda: publishers() and topics() >= expected)
+    assert publishers() == {harness.node_name}, harness.log()
+    assert topics() == expected

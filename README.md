@@ -211,7 +211,7 @@ Foxglove Teleop panel (which cannot publish stamped messages), and arbitrates be
   warning at most once a minute.
 - **Only the personality is capped**: |v| at most `personality_max_speed_rad_s` (2.0; the
   `personality_max_speed_rad_s` launch argument of `dome_teleop.launch.py` overrides it, so the
-  robot and the sim can differ), and the change per tick at most `personality_max_accel_rad_s2`
+  robot and the sim can differ; `launch_robot.launch.py` and the sim's `launch_sim.launch.py` set it, default 2.0), and the change per tick at most `personality_max_accel_rad_s2`
   (4.0) times the tick, counted from the value last *sent* by any source (a joystick release
   does not let the personality jump; a cold start to 2 rad/s takes 0.5 s). Only increases in
   magnitude are limited: braking (a smaller value of the same sign, or 0) is applied at once, a
@@ -263,6 +263,7 @@ It also starts the expression arbiters of `r2_expression` (`expression`, default
 | `rate_hz` | `5.0` | tick and `/mood/state` rate |
 | `expression` | `true` | start the expression arbiters |
 | `expression_config` | `r2_expression`'s installed `config/expression.yaml` | the arbiter config |
+| `dome` | `true` | start the dome arbiter (`/dome_arbiter`) in `r2_expression` |
 | `dome_mock` | `false` | start the dome mock of `r2_mocks` (the sim sets `true`) |
 | `dome_mock_name` | `r2_dome` | node name, hence namespace, of the mock; the sim launch files pass `dome_mock` (the mock's `/dome/text/line*` and `/dome/audio/level` then live under `/dome_mock/dome/...`) |
 | `device` | empty | device the arbiters use; empty means `/` + `dome_mock_name` with the mock, else `/r2_dome` |

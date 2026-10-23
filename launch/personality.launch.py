@@ -28,6 +28,7 @@ def generate_launch_description():
     dome_mock = LaunchConfiguration('dome_mock')
     dome_mock_name = LaunchConfiguration('dome_mock_name')
     device = LaunchConfiguration('device')
+    dome = LaunchConfiguration('dome')
 
     declared = [
         DeclareLaunchArgument(
@@ -57,6 +58,9 @@ def generate_launch_description():
             default_value=os.path.join(
                 get_package_share_directory('r2_expression'), 'config', 'expression.yaml'),
             description='Path of the expression.yaml to load'),
+        DeclareLaunchArgument(
+            'dome', default_value='true',
+            description='Start the dome arbiter (/dome_arbiter) in r2_expression'),
         DeclareLaunchArgument(
             'dome_mock', default_value='false',
             description='Start the dome device mock (r2_mocks) instead of relying on a real dome'),
@@ -105,6 +109,7 @@ def generate_launch_description():
                 'use_sim_time': use_sim_time,
                 'config': expression_config,
                 'device': device_ns,
+                'dome': dome,
             }.items(),
         )])
 

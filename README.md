@@ -203,6 +203,27 @@ Foxglove Teleop panel (which cannot publish stamped messages), and arbitrates be
   so a source that goes quiet always results in a stop. A joystick stream older than
   `joystick_timeout_s` (joy_node gone) is ignored.
 
+- **The personality is the lowest priority**: the dome arbiter of `r2_expression` publishes
+  `geometry_msgs/TwistStamped` on `/dome/cmd/personality` (`angular.z`, rad/s, reliable, depth 1).
+  It drives the dome only while the joystick and Foxglove are not, and only while its latest
+  message (by arrival time, not stamp) is younger than `personality_timeout_s` (0.5 s). The
+  converter works with no personality node on the graph. NaN and inf are treated as 0, with a
+  warning at most once a minute.
+- **Only the personality is capped**: |v| at most `personality_max_speed_rad_s` (2.0; the
+  `personality_max_speed_rad_s` launch argument of `dome_teleop.launch.py` overrides it, so the
+  robot and the sim can differ), and the change per tick at most `personality_max_accel_rad_s2`
+  (4.0) times the tick, counted from the value last *sent* by any source (a joystick release
+  does not let the personality jump; a cold start to 2 rad/s takes 0.5 s). Only increases in
+  magnitude are limited: braking (a smaller value of the same sign, or 0) is applied at once, a
+  reversal goes to 0 at once and then ramps up, and a timeout or takeover is immediate. The joystick and Foxglove are not capped here.
+- **Status**: `astromech_msgs/DomeCommandStatus` on `/dome/cmd/status` (reliable, depth 1) with
+  `source` (`idle`, `joystick`, `foxglove`, `personality`), `velocity_rad_s` (what was sent) and
+  `capped`, on every source change and at `status_hz` (2.0) otherwise.
+
+Parameters (`config/dome_teleop.yaml`): the joystick and Foxglove ones above, plus
+`personality_topic`, `personality_field`, `personality_timeout_s`, `personality_max_speed_rad_s`,
+`personality_max_accel_rad_s2`, `status_topic`, `status_hz`.
+
 Foxglove Teleop panel setup: topic `/cmd_vel_dome_foxglove`, message `geometry_msgs/Twist`,
 map the left and right buttons to `angular.z` -1 and +1 (`foxglove_field`), publish rate about
 10 Hz. The value is multiplied by `foxglove_scale` (rad/s per unit, 1.5 by default, like the

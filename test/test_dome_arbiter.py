@@ -24,8 +24,10 @@ PKG_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PKG_ROOT not in sys.path:
     sys.path.insert(0, PKG_ROOT)
 
+from r2_bringup.dome_arbiter import Decision  # noqa: E402
 from r2_bringup.dome_arbiter import DomeCommandArbiter  # noqa: E402
 from r2_bringup.dome_arbiter import SOURCE_FOXGLOVE, SOURCE_IDLE, SOURCE_JOYSTICK  # noqa: E402
+from r2_bringup.dome_arbiter import SOURCE_PERSONALITY  # noqa: E402
 from r2_bringup.dome_arbiter import twist_field  # noqa: E402
 
 
@@ -107,3 +109,166 @@ def test_arbiter_imports_without_rclpy():
             'sys.exit(1 if "rclpy" in sys.modules else 0)')
     env = dict(os.environ, PYTHONPATH=PKG_ROOT)
     assert subprocess.run([sys.executable, '-B', '-c', code], env=env, check=False).returncode == 0
+
+
+# --- the personality source -------------------------------------------------------------
+
+def run(a, t0, t1, value=None, dt=0.05):
+    """Tick ``a`` from t0 to t1, feeding the personality ``value`` each tick; return decisions."""
+    out = []
+    t = t0
+    while t <= t1 + 1e-9:
+        if value is not None:
+            a.personality(value, t)
+        out.append(a.decide(t))
+        t += dt
+    return out
+
+
+def test_source_strings():
+    assert (SOURCE_IDLE, SOURCE_JOYSTICK, SOURCE_FOXGLOVE, SOURCE_PERSONALITY) == (
+        'idle', 'joystick', 'foxglove', 'personality')
+
+
+def test_decide_returns_a_decision_and_command_keeps_the_old_shape():
+    a = arbiter()
+    assert a.decide(0.0) == Decision(0.0, SOURCE_IDLE, False)
+    a.foxglove(1.0, 1.0)
+    assert a.command(1.0) == (1.0, SOURCE_FOXGLOVE)
+
+
+def test_joystick_beats_foxglove_beats_personality():
+    a = arbiter()
+    a.personality(1.0, 0.0)
+    a.foxglove(0.5, 0.0)
+    a.joystick(0.25, 0.0)
+    assert a.decide(0.01)[:2] == (0.25, SOURCE_JOYSTICK)
+    a.foxglove(0.5, 0.4)
+    a.personality(1.0, 0.4)
+    # the joystick stream timed out (0.5 s), foxglove is fresh
+    assert a.decide(0.6)[:2] == (0.5, SOURCE_FOXGLOVE)
+    a.personality(1.0, 0.8)
+    assert a.decide(0.85).source == SOURCE_FOXGLOVE
+    assert a.decide(0.95).source == SOURCE_PERSONALITY
+
+
+def test_joystick_hold_and_forwarded_zeros_unchanged_with_personality_pushing():
+    a = arbiter()
+    a.joystick(1.0, 0.0)
+    a.joystick(0.0, 0.1)
+    for t in (0.1, 0.3, 0.45):
+        a.personality(1.5, t)
+        assert a.decide(t)[:2] == (0.0, SOURCE_JOYSTICK)
+        a.joystick(0.0, t)
+    a.personality(1.5, 0.7)
+    assert a.decide(0.7).source == SOURCE_PERSONALITY
+
+
+def test_personality_times_out_to_idle_zero():
+    a = arbiter()
+    a.personality(1.0, 0.0)
+    run(a, 0.0, 0.5, value=None)
+    assert a.decide(0.5).source == SOURCE_PERSONALITY
+    assert a.decide(0.51) == Decision(0.0, SOURCE_IDLE, False)
+
+
+def test_personality_speed_cap():
+    a = DomeCommandArbiter(personality_max_speed_rad_s=2.0, personality_max_accel_rad_s2=1000.0)
+    d = run(a, 0.0, 0.1, value=5.0)[-1]
+    assert d == Decision(2.0, SOURCE_PERSONALITY, True)
+    d = run(a, 0.15, 0.2, value=-5.0)[-1]
+    assert d == Decision(-2.0, SOURCE_PERSONALITY, True)
+
+
+def test_personality_below_caps_is_not_flagged():
+    a = DomeCommandArbiter(personality_max_accel_rad_s2=1000.0)
+    assert run(a, 0.0, 0.1, value=1.0)[-1] == Decision(1.0, SOURCE_PERSONALITY, False)
+
+
+def test_personality_acceleration_cap_cold_start_takes_half_a_second():
+    a = DomeCommandArbiter()   # 2 rad/s, 4 rad/s2
+    a.decide(0.0)
+    ds = run(a, 0.05, 0.6, value=2.0, dt=0.05)
+    assert ds[0].velocity == pytest.approx(0.2) and ds[0].capped
+    assert ds[1].velocity == pytest.approx(0.4)
+    assert ds[9].velocity == pytest.approx(2.0) and not ds[9].capped   # t = 0.5
+    assert all(abs(y.velocity - x.velocity) <= 0.2 + 1e-9 for x, y in zip(ds, ds[1:]))
+
+
+def test_acceleration_cap_counts_from_the_last_value_sent_after_a_joystick_release():
+    a = DomeCommandArbiter()
+    a.decide(0.0)
+    # joystick at 1.5 rad/s, then released; hold lasts 0.5 s then personality at 2.0 asks
+    t = 0.05
+    while t < 0.3:
+        a.joystick(1.5, t)
+        a.decide(t)
+        t += 0.05
+    a.joystick(0.0, t)
+    last = a.decide(t)
+    assert last.velocity == 0.0
+    ds = []
+    while t < 1.2:
+        t += 0.05
+        a.joystick(0.0, t)
+        a.personality(2.0, t)
+        ds.append(a.decide(t))
+    first = next(d for d in ds if d.source == SOURCE_PERSONALITY)
+    assert first.velocity == pytest.approx(0.2)   # from the 0 the joystick sent, not from 2.0
+    assert first.capped
+
+
+def test_acceleration_cap_from_a_joystick_value_it_took_over_from():
+    a = DomeCommandArbiter()
+    a.decide(0.0)
+    a.joystick(1.5, 0.05)
+    assert a.decide(0.05).velocity == 1.5
+    # joystick stream dies: its timeout passes, personality asks 0 -> still ramps from last sent
+    a.personality(-2.0, 0.6)
+    d = a.decide(0.6)   # last sent 1.5: a reversal goes through 0 at once
+    assert d == Decision(0.0, SOURCE_PERSONALITY, True)
+    a.personality(-2.0, 0.65)
+    assert a.decide(0.65).velocity == pytest.approx(-0.2)
+
+
+def test_braking_is_not_rate_limited_and_a_reversal_passes_through_zero():
+    a = DomeCommandArbiter()
+    run(a, 0.0, 1.0, value=2.0)
+    assert a.decide(1.0).velocity == 2.0
+    a.personality(0.0, 1.05)
+    assert a.decide(1.05) == Decision(0.0, SOURCE_PERSONALITY, False)   # 0 on the next tick
+    run(a, 1.1, 1.6, value=1.0)
+    a.personality(0.5, 1.65)
+    assert a.decide(1.65).velocity == 0.5                               # smaller, same sign
+    b = DomeCommandArbiter()
+    run(b, 0.0, 1.0, value=1.0)
+    b.personality(-1.0, 1.05)
+    assert b.decide(1.05).velocity == 0.0
+    b.personality(-1.0, 1.1)
+    assert b.decide(1.1).velocity == pytest.approx(-0.2)
+
+
+def test_decelerating_to_a_stop_by_timeout_is_not_rate_limited():
+    a = DomeCommandArbiter()
+    run(a, 0.0, 1.0, value=2.0)
+    assert a.decide(1.6) == Decision(0.0, SOURCE_IDLE, False)
+
+
+@pytest.mark.parametrize('bad', [float('nan'), float('inf'), float('-inf')])
+def test_non_finite_values_are_zero(bad):
+    a = arbiter()
+    assert a.personality(bad, 0.0) is False
+    assert a.decide(0.0)[:2] == (0.0, SOURCE_PERSONALITY)
+    a.foxglove(bad, 1.0)
+    assert a.decide(1.0)[:2] == (0.0, SOURCE_FOXGLOVE)
+    a.joystick(bad, 2.0)
+    assert a.decide(2.0)[:2] == (0.0, SOURCE_IDLE)   # zero never earns the joystick authority
+    assert a.personality(1.0, 3.0) is True
+
+
+def test_other_sources_are_never_capped():
+    a = DomeCommandArbiter(personality_max_speed_rad_s=0.5, personality_max_accel_rad_s2=0.1)
+    a.joystick(3.0, 0.0)
+    assert a.decide(0.0) == Decision(3.0, SOURCE_JOYSTICK, False)
+    a.foxglove(-3.0, 1.0)
+    assert a.decide(1.0) == Decision(-3.0, SOURCE_FOXGLOVE, False)

@@ -14,30 +14,36 @@
 # limitations under the License.
 
 """
-Dome velocity command node: joystick and Foxglove in, controller command out.
+Dome velocity command node: joystick, Foxglove and personality in, controller command out.
 
-The joystick (TwistStamped) and the Foxglove Teleop panel (plain Twist) are
-arbitrated into the ``Float64MultiArray`` the dome velocity controller reads.
-The joystick has precedence; see ``r2_bringup.dome_arbiter`` for the rules.
+The joystick (TwistStamped), the Foxglove Teleop panel (plain Twist) and the personality
+(TwistStamped, ``angular.z``) are arbitrated into the ``Float64MultiArray`` the dome velocity
+controller reads, in that order of precedence; only the personality is speed and
+acceleration capped. See ``r2_bringup.dome_arbiter`` for the rules. Who drove the dome is
+published as ``astromech_msgs/DomeCommandStatus`` on every source change and at ``status_hz``.
 The command is published from a timer, so a source that goes quiet is timed
 out and the dome stopped even if no message ever says so; one final zero is
-sent when both sources are idle.
+sent when all sources are idle (a personality timeout stops the dome at once, unramped).
 """
 
 import time
 
+from astromech_msgs.msg import DomeCommandStatus
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import TwistStamped
+from r2_bringup.dome_arbiter import Decision
 from r2_bringup.dome_arbiter import DomeCommandArbiter
 from r2_bringup.dome_arbiter import SOURCE_IDLE
 from r2_bringup.dome_arbiter import twist_field
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile
+from rclpy.qos import ReliabilityPolicy
 from std_msgs.msg import Float64MultiArray
 
 
 class DomeTwistConverter(Node):
-    """Arbitrate joystick and Foxglove commands into the dome controller's command."""
+    """Arbitrate joystick, Foxglove and personality commands into the dome controller's command."""
 
     def __init__(self):
         super().__init__('dome_twist_converter')
@@ -49,38 +55,60 @@ class DomeTwistConverter(Node):
         self.declare_parameter('joystick_hold_s', 0.5)
         self.declare_parameter('joystick_timeout_s', 0.5)
         self.declare_parameter('foxglove_timeout_s', 0.5)
+        self.declare_parameter('personality_topic', 'dome/cmd/personality')
+        self.declare_parameter('personality_field', 'angular.z')
+        self.declare_parameter('personality_timeout_s', 0.5)
+        self.declare_parameter('personality_max_speed_rad_s', 2.0)
+        self.declare_parameter('personality_max_accel_rad_s2', 4.0)
         self.declare_parameter('publish_rate_hz', 20.0)
+        self.declare_parameter('status_hz', 2.0)
+        self.declare_parameter('status_topic', 'dome/cmd/status')
         self.declare_parameter('output_topic', 'dome_controller/commands')
 
         p = self.get_parameter
         self._joystick_field = str(p('joystick_field').value)
         self._foxglove_field = str(p('foxglove_field').value)
         self._foxglove_scale = float(p('foxglove_scale').value)
+        self._personality_field = str(p('personality_field').value)
         for name in ('joystick_hold_s', 'joystick_timeout_s', 'foxglove_timeout_s',
-                     'publish_rate_hz'):
+                     'personality_timeout_s', 'personality_max_speed_rad_s',
+                     'personality_max_accel_rad_s2', 'publish_rate_hz', 'status_hz'):
             if not float(p(name).value) > 0.0:
                 raise ValueError('%s must be > 0, got %r' % (name, p(name).value))
-        for field in (self._joystick_field, self._foxglove_field):
+        for field in (self._joystick_field, self._foxglove_field, self._personality_field):
             twist_field(Twist(), field)   # validates the field name
         self._arbiter = DomeCommandArbiter(
             joystick_hold_s=float(p('joystick_hold_s').value),
             joystick_timeout_s=float(p('joystick_timeout_s').value),
-            foxglove_timeout_s=float(p('foxglove_timeout_s').value))
-        self._last_source = SOURCE_IDLE
+            foxglove_timeout_s=float(p('foxglove_timeout_s').value),
+            personality_timeout_s=float(p('personality_timeout_s').value),
+            personality_max_speed_rad_s=float(p('personality_max_speed_rad_s').value),
+            personality_max_accel_rad_s2=float(p('personality_max_accel_rad_s2').value),
+            max_tick_s=2.0 / float(p('publish_rate_hz').value))   # one missed tick allowed
+        self._last_decision = Decision(0.0, SOURCE_IDLE)
 
         self._publisher = self.create_publisher(
             Float64MultiArray, str(p('output_topic').value), 10)
         self.create_subscription(TwistStamped, str(p('joystick_topic').value),
                                  self._on_joystick, 10)
         self.create_subscription(Twist, str(p('foxglove_topic').value), self._on_foxglove, 10)
+        reliable = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE)
+        self.create_subscription(TwistStamped, str(p('personality_topic').value),
+                                 self._on_personality, reliable)
+        self._status_publisher = self.create_publisher(
+            DomeCommandStatus, str(p('status_topic').value), reliable)
         self.create_timer(1.0 / float(p('publish_rate_hz').value), self._on_timer)
+        self.create_timer(1.0 / float(p('status_hz').value), self._publish_status)
         self.get_logger().info(
             'Dome command arbiter: joystick %s (%s) has precedence, Foxglove %s (%s x %.2f), '
-            'hold %.2f s, timeouts %.2f / %.2f s, output %s' % (
+            'hold %.2f s, timeouts %.2f / %.2f s, personality %s (%s, timeout %.2f s, '
+            '|v| <= %.2f rad/s, |a| <= %.2f rad/s2), output %s' % (
                 p('joystick_topic').value, self._joystick_field, p('foxglove_topic').value,
                 self._foxglove_field, self._foxglove_scale, self._arbiter.joystick_hold_s,
                 self._arbiter.joystick_timeout_s, self._arbiter.foxglove_timeout_s,
-                p('output_topic').value))
+                p('personality_topic').value, self._personality_field,
+                self._arbiter.personality_timeout_s, self._arbiter.personality_max_speed_rad_s,
+                self._arbiter.personality_max_accel_rad_s2, p('output_topic').value))
 
     def _on_joystick(self, msg: TwistStamped):
         self._arbiter.joystick(twist_field(msg.twist, self._joystick_field), time.monotonic())
@@ -89,16 +117,34 @@ class DomeTwistConverter(Node):
         self._arbiter.foxglove(twist_field(msg, self._foxglove_field) * self._foxglove_scale,
                                time.monotonic())
 
+    def _on_personality(self, msg: TwistStamped):
+        # Arrival time, not msg.header.stamp: a stale stamp must not time the input out.
+        if not self._arbiter.personality(twist_field(msg.twist, self._personality_field),
+                                         time.monotonic()):
+            self.get_logger().warning(
+                'Ignoring a non-finite personality dome command (treated as 0)',
+                throttle_duration_sec=60.0)
+
     def _on_timer(self):
-        value, source = self._arbiter.command(time.monotonic())
-        if source != self._last_source:
-            self.get_logger().info('Dome command source: %s' % source)
-            self._last_source = source
-        elif source == SOURCE_IDLE:
+        decision = self._arbiter.decide(time.monotonic())
+        changed = decision.source != self._last_decision.source
+        self._last_decision = decision
+        if changed:
+            self.get_logger().info('Dome command source: %s' % decision.source)
+            self._publish_status()
+        elif decision.source == SOURCE_IDLE:
             return   # the zero was sent when the source went idle
         msg = Float64MultiArray()
-        msg.data = [value]
+        msg.data = [decision.velocity]
         self._publisher.publish(msg)
+
+    def _publish_status(self):
+        msg = DomeCommandStatus()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.source = self._last_decision.source
+        msg.velocity_rad_s = self._last_decision.velocity
+        msg.capped = self._last_decision.capped
+        self._status_publisher.publish(msg)
 
 
 def main(args=None):

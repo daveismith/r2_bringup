@@ -27,7 +27,7 @@ dome_teleop_node:
     require_enable_button: false
     publish_stamped_twist: true
 
-# Joystick and Foxglove arbitration for the dome velocity command (dome_twist_converter).
+# Joystick, Foxglove and personality arbitration for the dome velocity command (dome_twist_converter).
 # The joystick has precedence: while its command is non-zero, and for joystick_hold_s after
 # it returns to zero (its zeros stop the dome even if Foxglove is pushing). Otherwise the
 # Foxglove Teleop panel's plain Twist on foxglove_topic drives the dome until it is older
@@ -48,3 +48,13 @@ dome_twist_converter:
     foxglove_timeout_s: 0.5
     publish_rate_hz: 20.0
     output_topic: dome_controller/commands
+    # The personality (r2_expression's dome arbiter) is the lowest priority. Only it is
+    # capped: speed, and acceleration from the last value sent (so a joystick release does
+    # not let it jump). The converter publishes who drove the dome on dome/cmd/status.
+    personality_topic: dome/cmd/personality
+    personality_field: angular.z
+    personality_timeout_s: 0.5
+    # personality_max_speed_rad_s (2.0) is set by the launch argument of the same name
+    personality_max_accel_rad_s2: 4.0
+    status_topic: dome/cmd/status
+    status_hz: 2.0

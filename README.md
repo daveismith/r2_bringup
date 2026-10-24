@@ -351,6 +351,13 @@ The player's `sounddevice` backend plays through PortAudio's ALSA host API. In t
    ```
 
    (On an Intel Mac Homebrew's prefix is `/usr/local`.) Quote the `;` lists on a command line.
+
+   If that prints `E: [] main.c: Daemon startup failed.` (the `caps.c` capabilities line
+   above it is only a warning), the cause is hidden by the fork: check for a running instance
+   with `pulseaudio --check -v`, stop it with `pulseaudio -k`, then start in the foreground
+   with `-vv` instead of `--daemonize=yes`, in its own terminal, and read the first `E:` line.
+   With the `load-module` line in `default.pa`, leave out `--load` (the module would load
+   twice). The foreground form is a fine way to run it for a session.
 3. Check on the Mac: `pactl info` answers and `pactl list short sinks` shows the built-in output.
 4. In the container (after the image rebuild) `compose.yaml` sets `PULSE_SERVER=tcp:host.docker.internal:4713` on the `dev` service. Docker Desktop makes the Mac reachable as `host.docker.internal`. Override `PULSE_SERVER` in `.env` for another address.
 5. Container-side check, a 1 s 440 Hz tone, and the ALSA devices:

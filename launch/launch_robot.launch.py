@@ -44,6 +44,18 @@ def generate_launch_description():
         description='Cap (rad/s) the dome twist converter applies to '
                     'the personality dome commands (joystick and Foxglove are not capped)')
 
+    # The sound player's files (rsynced from the Mac) and its ALSA output, a name substring.
+    sounds_dir = LaunchConfiguration('sounds_dir')
+    sounds_dir_arg = DeclareLaunchArgument(
+        'sounds_dir',
+        default_value='/home/pi/sounds',
+        description='Directory of the sound sets the sound catalogue is relative to')
+    sound_device = LaunchConfiguration('sound_device')
+    sound_device_arg = DeclareLaunchArgument(
+        'sound_device',
+        default_value='USB',
+        description='Sound output: an ALSA device name substring (see `aplay -l`)')
+
     package_name='r2_bringup' #<--- CHANGE ME
     web_package_name = 'r2_web_interface'
 
@@ -102,7 +114,8 @@ def generate_launch_description():
     personality_stack = IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([os.path.join(
                     get_package_share_directory(package_name), 'launch', 'personality.launch.py'
-                )]), launch_arguments={'use_sim_time': 'false'}.items(),
+                )]), launch_arguments={'use_sim_time': 'false', 'sounds_dir': sounds_dir,
+                                  'sound_device': sound_device}.items(),
                 condition=IfCondition(personality)
     )
 
@@ -190,6 +203,8 @@ def generate_launch_description():
     return LaunchDescription([
         dome_bench_arg,
         personality_arg,
+        sounds_dir_arg,
+        sound_device_arg,
         rsp,
         joystick,
         twist_mux,

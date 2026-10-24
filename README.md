@@ -302,6 +302,14 @@ It also starts the expression arbiters of `r2_expression` (`expression`, default
 | `dome_mock` | `false` | start the dome mock of `r2_mocks` (the sim sets `true`) |
 | `dome_mock_name` | `r2_dome` | node name, hence namespace, of the mock; the sim launch files pass `dome_mock` (the mock's `/dome/text/line*` and `/dome/audio/level` then live under `/dome_mock/dome/...`) |
 | `device` | empty | device the arbiters use; empty means `/` + `dome_mock_name` with the mock, else `/r2_dome` |
+| `sound` | `true` | start `sound_player` (`r2_sound`) and `sound_arbiter` (`r2_expression`) |
+| `sound_backend` | `sounddevice` | player backend: `sounddevice`, `wav` or `null` (the sim passes `wav`) |
+| `sounds_dir` | `/sounds` | directory the catalogue paths are relative to (`launch_robot.launch.py` sets `/home/pi/sounds`) |
+| `sound_device` | empty | output device, an ALSA name substring; empty is the default device (`launch_robot.launch.py` sets `USB`) |
+| `dome_level_topic` | `/dome/audio/level` | the dome's `UInt8` level input the player feeds (the sim passes `/<dome_mock_name>/dome/audio/level`) |
+| `sound_catalogue` | `r2_sound`'s installed `config/clips.yaml` | the clip catalogue |
+
+`launch_robot.launch.py` takes `sounds_dir` (default `/home/pi/sounds`, the tree rsynced from the Mac) and `sound_device` (default `USB`) and forwards them. `sound_device` is a substring of an ALSA device name: run `aplay -l` on the Pi and pick a distinctive part of the USB DAC's card name (for example `USB` in `card 1: Device [USB Audio Device]`). A name that matches no output device raises an error listing the devices it found (case-insensitive match); check the player's log.
 
 The config lives in `r2_personality/r2_affect/config/affect.yaml`. With `--symlink-install` an edit is picked up by `ros2 service call /mood/reload_config std_srvs/srv/Trigger`, no restart needed. For the `mood` CLI (`mood watch`, `mood set`) see the `r2_affect` README; for the design see `docs/personality-architecture.md` in the r2_dev workspace.
 

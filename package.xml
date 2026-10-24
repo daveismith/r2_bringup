@@ -22,6 +22,7 @@
   <exec_depend>r2_stimulus</exec_depend>
   <exec_depend>r2_expression</exec_depend>
   <exec_depend>r2_mocks</exec_depend>
+  <exec_depend>r2_sound</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>astromech_msgs</exec_depend>

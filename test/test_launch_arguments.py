@@ -31,3 +31,18 @@ def test_personality_declares_dome():
 def test_robot_declares_personality_max_speed():
     args = declared('launch_robot.launch.py')
     assert default(args['personality_max_speed_rad_s']) == '2.0'
+
+
+def test_personality_declares_sound():
+    args = declared('personality.launch.py')
+    expected = {'sound': 'true', 'sound_backend': 'sounddevice', 'sounds_dir': '/sounds',
+                'sound_device': '', 'dome_level_topic': '/dome/audio/level'}
+    for name, value in expected.items():
+        assert default(args[name]) == value, name
+    assert default(args['sound_catalogue']).endswith('config/clips.yaml')
+
+
+def test_robot_declares_sound():
+    args = declared('launch_robot.launch.py')
+    assert default(args['sounds_dir']) == '/home/pi/sounds'
+    assert default(args['sound_device']) == 'USB'

@@ -35,7 +35,12 @@ Do these once on the robot's Pi (not on a development machine).
 - **Run the control stack at normal priority.** Anything started from a shell
   that has been reniced (some tool environments run at nice 19) inherits that
   priority, including `ros2_control_node`. Check with
-  `ps -o pid,ni,comm -C ros2_control_node`; it should show `0`.
+  `ps -o pid,ni,comm -C ros2_control_node`; it should show `0`. A second cause
+  was found on 2026-10-23: `/etc/security/limits.conf` gave `@realtime` a line
+  `priority 99` beside the intended `rtprio 99`. `priority` is a *nice* value, so
+  99 clamped to 19 and everything started from a login of that group, the whole
+  stack included, ran at nice 19. Delete the two `priority` lines (keep `rtprio`),
+  log in again, and for a stack already running use `sudo renice -n 0 -u pi`.
 
 - **Install the device rules and CAN interface files.** The udev rules, the two
   `systemd-networkd` CAN files and the MCP2515 overlay in `config.txt` are listed, with
@@ -144,7 +149,11 @@ source /opt/ros/jazzy/setup.bash
 source install/setup.bash
 ```
 
-Robot: the same, but without `R2_ZENOH_CONNECT`.
+Robot: the same, but without `R2_ZENOH_CONNECT`. Render it with
+`make MACHINE=robot setup` rather than by hand; its working lines are
+`export RMW_IMPLEMENTATION=rmw_zenoh_cpp`, `source /opt/ros/jazzy/setup.bash` and
+`source install/setup.bash`. The robot's file once exported a stale
+`ZENOH_ROUTER_CONFIG_URI` (see "Things to avoid"); delete anything else in it.
 
 Source it from the workspace root, because it uses relative paths:
 
@@ -172,12 +181,23 @@ To connect somewhere else for a single run, pass the argument. Separate multiple
 ros2 launch r2_bringup launch_zenoh_router.launch.py connect:=tcp/192.168.1.50:7447
 ```
 
+Start the router first and wait until it listens (`ss -ltn | grep 7447`) before launching
+anything else on that machine: nodes launched earlier log `Unable to connect to a Zenoh
+router`.
+
 Check the link from the laptop: with both routers running, `ros2 topic list` should show the robot's topics.
 
 ### Things to avoid
 
 - Don't export `ZENOH_CONFIG_OVERRIDE` in `setup.bash`. It applies to every Zenoh process, so each node would connect to the robot directly instead of to its local router.
 - Don't keep a copied `DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5` or set `ZENOH_ROUTER_CONFIG_URI`. The launch file unsets `ZENOH_ROUTER_CONFIG_URI` so that the stock config, which is updated along with `rmw_zenoh_cpp`, is always used. Put any new router settings into the override list in `launch/launch_zenoh_router.launch.py`.
+- Don't run node tests (`colcon test` of a package that starts nodes, a fake `/mood/state`
+  publisher, mocks) in the dev container while it is connected to the robot. The laptop's
+  or container's router peers with the robot's over WiFi, so the test's nodes (`dome_mock_t*`,
+  `arbiter_test_*`, ...) are on the robot's graph: on 2026-10-23 that took the robot's router
+  to 80-96 % of a core twice, with `Route reply: Query not found` and `Didn't receive final reply
+  for query ... Timeout(600s)` on the peer link face, and it did not recover until it was restarted.
+  Stop the container's router, or start it without `R2_ZENOH_CONNECT`, for the tests.
 
 ## Dome teleop: joystick and Foxglove
 

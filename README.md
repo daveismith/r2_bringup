@@ -305,6 +305,63 @@ It also starts the expression arbiters of `r2_expression` (`expression`, default
 
 The config lives in `r2_personality/r2_affect/config/affect.yaml`. With `--symlink-install` an edit is picked up by `ros2 service call /mood/reload_config std_srvs/srv/Trigger`, no restart needed. For the `mood` CLI (`mood watch`, `mood set`) see the `r2_affect` README; for the design see `docs/personality-architecture.md` in the r2_dev workspace.
 
+## Sound on the Mac
+
+R2's sound (phase 3, `r2_sound`) can be heard from the dev container on the Mac in two ways. Route 2 is a convenience: nothing in the stack or the tests needs it. The image changes (`python3-sounddevice`, `libasound2-plugins`, `alsa-utils`, `/etc/asound.conf`) arrive with `make image` on the Mac, then Dev Containers: Rebuild Container (or `make up`). A rebuild's `vcs import` resets the `src/*` branches to `main`, so check the working branches out again afterwards (see `CLAUDE.md`).
+
+### Route 1: files and `afplay` (no image rebuild needed)
+
+The player's `wav` backend writes what it would have played to `/ws/.audio/out/`, which is the workspace's `.audio/out/` folder on the Mac (git-ignored). On the Mac:
+
+```bash
+afplay ~/path/to/r2_dev/.audio/out/<file>.wav
+```
+
+To hear each new file as it appears, run `tools/watch_out.sh` from the workspace root on the Mac. It polls once a second and `afplay`s every `.wav` newer than the last pass:
+
+```bash
+tools/watch_out.sh
+```
+
+### Route 2: live through PulseAudio on the Mac
+
+The player's `sounddevice` backend plays through PortAudio's ALSA host API. In the image `/etc/asound.conf` makes the ALSA default the `pulse` plugin, so with `PULSE_SERVER` set the sound goes over TCP to a PulseAudio running on the Mac and out of its speakers (about 100 ms latency).
+
+1. Install PulseAudio on the Mac: `brew install pulseaudio`.
+2. Start it so the container can reach it, accepting the Docker address ranges:
+
+   ```bash
+   pulseaudio --exit-idle-time=-1 --daemonize=yes \
+     --load="module-native-protocol-tcp auth-anonymous=1 auth-ip-acl=127.0.0.1;172.16.0.0/12;192.168.0.0/16;10.0.0.0/8"
+   ```
+
+   Or put the line in `~/.config/pulse/default.pa` so every start has it:
+
+   ```
+   .include /opt/homebrew/etc/pulse/default.pa
+   load-module module-native-protocol-tcp auth-anonymous=1 auth-ip-acl=127.0.0.1;172.16.0.0/12;192.168.0.0/16;10.0.0.0/8
+   ```
+
+   (On an Intel Mac Homebrew's prefix is `/usr/local`.) Quote the `;` lists on a command line.
+3. Check on the Mac: `pactl info` answers and `pactl list short sinks` shows the built-in output.
+4. In the container (after the image rebuild) `compose.yaml` sets `PULSE_SERVER=tcp:host.docker.internal:4713` on the `dev` service. Docker Desktop makes the Mac reachable as `host.docker.internal`. Override `PULSE_SERVER` in `.env` for another address.
+5. Container-side check, a 1 s 440 Hz tone, and the ALSA devices:
+
+   ```bash
+   python3 -c "import numpy as np, sounddevice as sd; sd.play(0.2*np.sin(2*np.pi*440*np.arange(22050)/22050), 22050); sd.wait()"
+   aplay -L | head
+   ```
+
+   `aplay -L` should list `default` (the pulse plugin) near the top.
+
+When it is silent:
+
+- PulseAudio is not running on the Mac (`pactl info` fails); start it again, it does not survive a logout.
+- The Mac firewall blocks it: allow incoming connections for `pulseaudio` (System Settings, Network, Firewall).
+- `pactl list short sinks` on the Mac is empty or the Mac's output is muted or set to another device.
+- The ALSA default is not pulse: `cat /etc/asound.conf` in the container should show the two `type pulse` lines, otherwise the image is old.
+- `PULSE_SERVER` is unset or wrong in the container (`echo $PULSE_SERVER`). With it unset the tone fails with an error and the player falls back per its `backend` parameter.
+
 ## Joint state topics
 
 - `/joint_states`: every joint, merged by `joint_state_publisher` from `/joint_broad/joint_states` and the dome servo device's `/dome/joint_states`.

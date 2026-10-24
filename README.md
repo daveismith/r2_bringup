@@ -368,7 +368,7 @@ When it is silent:
 - The Mac firewall blocks it: allow incoming connections for `pulseaudio` (System Settings, Network, Firewall).
 - `pactl list short sinks` on the Mac is empty or the Mac's output is muted or set to another device.
 - The ALSA default is not pulse: `cat /etc/asound.conf` in the container should show the two `type pulse` lines, otherwise the image is old.
-- `PULSE_SERVER` is unset or wrong in the container (`echo $PULSE_SERVER`). With it unset the tone fails with an error and the player falls back per its `backend` parameter.
+- `PULSE_SERVER` is unset or wrong in the container (`echo $PULSE_SERVER`). With it unset the tone fails with an error; a missing sounddevice device logs an ERROR and the player runs on the null backend (silent, the channel stays online) unless `require_device` is set.
 
 ## Joint state topics
 

@@ -368,6 +368,9 @@ The player's `sounddevice` backend plays through PortAudio's ALSA host API. In t
    ```
 
    `aplay -L` should list `default` (the pulse plugin) near the top.
+6. Hear the sim: `ros2 launch r2_sim sim_foxglove.launch.py sound_backend:=sounddevice`
+   (the default `wav` writes files instead). `express play padawan-scream02` should come out
+   of the Mac's speakers.
 
 When it is silent:
 

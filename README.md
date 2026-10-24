@@ -307,7 +307,7 @@ The config lives in `r2_personality/r2_affect/config/affect.yaml`. With `--symli
 
 ## Sound on the Mac
 
-R2's sound (phase 3, `r2_sound`) can be heard from the dev container on the Mac in two ways. Route 2 is a convenience: nothing in the stack or the tests needs it. The image changes (`python3-sounddevice`, `libasound2-plugins`, `alsa-utils`, `/etc/asound.conf`) arrive with `make image` on the Mac, then Dev Containers: Rebuild Container (or `make up`). A rebuild's `vcs import` resets the `src/*` branches to `main`, so check the working branches out again afterwards (see `CLAUDE.md`).
+R2's sound (phase 3, `r2_sound`) can be heard from the dev container on the Mac in two ways. Route 2 is a convenience: nothing in the stack or the tests needs it. The image changes (`libportaudio2`, `sounddevice` from pip, `libasound2-plugins`, `alsa-utils`, `/etc/asound.conf`) arrive with `make image` on the Mac, then Dev Containers: Rebuild Container (or `make up`). A rebuild's `vcs import` resets the `src/*` branches to `main`, so check the working branches out again afterwards (see `CLAUDE.md`).
 
 ### Route 1: files and `afplay` (no image rebuild needed)
 

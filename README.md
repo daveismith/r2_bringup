@@ -198,6 +198,12 @@ Check the link from the laptop: with both routers running, `ros2 topic list` sho
   to 80-96 % of a core twice, with `Route reply: Query not found` and `Didn't receive final reply
   for query ... Timeout(600s)` on the peer link face, and it did not recover until it was restarted.
   Stop the container's router, or start it without `R2_ZENOH_CONNECT`, for the tests.
+- Expect the dev container's router to degrade after many node tests: every new node's log
+  floods with `ERROR ... zenoh::api::session: Received Data for unknown expr_id: N` and a node
+  takes more than 10 s to exit on SIGINT (SIGTERM still exits at once). `tools/router_health.sh`
+  checks for it (a 3 s pub/sub probe node, times its SIGINT exit, counts the `unknown expr_id`
+  lines; exit 0 OK, 1 DEGRADED, 2 router unreachable). Run it before and after a test session.
+  The only fix is on the Mac: `docker compose restart router`.
 
 ## Dome teleop: joystick and Foxglove
 

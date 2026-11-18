@@ -36,6 +36,14 @@ def generate_launch_description():
         description='Start the personality stack (r2_affect mood model; '
                     'see personality.launch.py)')
 
+    # The cap the dome twist converter applies to the personality's dome commands.
+    personality_max_speed = LaunchConfiguration('personality_max_speed_rad_s')
+    personality_max_speed_arg = DeclareLaunchArgument(
+        'personality_max_speed_rad_s',
+        default_value='2.0',
+        description='Cap (rad/s) the dome twist converter applies to '
+                    'the personality dome commands (joystick and Foxglove are not capped)')
+
     package_name='r2_bringup' #<--- CHANGE ME
     web_package_name = 'r2_web_interface'
 
@@ -79,7 +87,9 @@ def generate_launch_description():
     dome_teleop = IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([os.path.join(
                     get_package_share_directory(package_name),'launch','dome_teleop.launch.py'
-                )]), launch_arguments={'use_sim_time': 'false'}.items(),
+                )]), launch_arguments={
+                    'use_sim_time': 'false',
+                    'personality_max_speed_rad_s': personality_max_speed}.items(),
                 condition=UnlessCondition(dome_bench)
     )
 
@@ -188,6 +198,7 @@ def generate_launch_description():
         delayed_joint_broad_spawner,
         delay_robot_controller_spawner_after_joint_state_broadcaster_spawner,
         joint_states,
+        personality_max_speed_arg,
         dome_teleop,
         web_interface,
         personality_stack,

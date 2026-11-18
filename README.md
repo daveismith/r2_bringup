@@ -35,7 +35,12 @@ Do these once on the robot's Pi (not on a development machine).
 - **Run the control stack at normal priority.** Anything started from a shell
   that has been reniced (some tool environments run at nice 19) inherits that
   priority, including `ros2_control_node`. Check with
-  `ps -o pid,ni,comm -C ros2_control_node`; it should show `0`.
+  `ps -o pid,ni,comm -C ros2_control_node`; it should show `0`. A second cause
+  was found on 2026-10-23: `/etc/security/limits.conf` gave `@realtime` a line
+  `priority 99` beside the intended `rtprio 99`. `priority` is a *nice* value, so
+  99 clamped to 19 and everything started from a login of that group, the whole
+  stack included, ran at nice 19. Delete the two `priority` lines (keep `rtprio`),
+  log in again, and for a stack already running use `sudo renice -n 0 -u pi`.
 
 - **Install the device rules and CAN interface files.** The udev rules, the two
   `systemd-networkd` CAN files and the MCP2515 overlay in `config.txt` are listed, with
@@ -144,7 +149,11 @@ source /opt/ros/jazzy/setup.bash
 source install/setup.bash
 ```
 
-Robot: the same, but without `R2_ZENOH_CONNECT`.
+Robot: the same, but without `R2_ZENOH_CONNECT`. Render it with
+`make MACHINE=robot setup` rather than by hand; its working lines are
+`export RMW_IMPLEMENTATION=rmw_zenoh_cpp`, `source /opt/ros/jazzy/setup.bash` and
+`source install/setup.bash`. The robot's file once exported a stale
+`ZENOH_ROUTER_CONFIG_URI` (see "Things to avoid"); delete anything else in it.
 
 Source it from the workspace root, because it uses relative paths:
 
@@ -172,12 +181,23 @@ To connect somewhere else for a single run, pass the argument. Separate multiple
 ros2 launch r2_bringup launch_zenoh_router.launch.py connect:=tcp/192.168.1.50:7447
 ```
 
+Start the router first and wait until it listens (`ss -ltn | grep 7447`) before launching
+anything else on that machine: nodes launched earlier log `Unable to connect to a Zenoh
+router`.
+
 Check the link from the laptop: with both routers running, `ros2 topic list` should show the robot's topics.
 
 ### Things to avoid
 
 - Don't export `ZENOH_CONFIG_OVERRIDE` in `setup.bash`. It applies to every Zenoh process, so each node would connect to the robot directly instead of to its local router.
 - Don't keep a copied `DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5` or set `ZENOH_ROUTER_CONFIG_URI`. The launch file unsets `ZENOH_ROUTER_CONFIG_URI` so that the stock config, which is updated along with `rmw_zenoh_cpp`, is always used. Put any new router settings into the override list in `launch/launch_zenoh_router.launch.py`.
+- Don't run node tests (`colcon test` of a package that starts nodes, a fake `/mood/state`
+  publisher, mocks) in the dev container while it is connected to the robot. The laptop's
+  or container's router peers with the robot's over WiFi, so the test's nodes (`dome_mock_t*`,
+  `arbiter_test_*`, ...) are on the robot's graph: on 2026-10-23 that took the robot's router
+  to 80-96 % of a core twice, with `Route reply: Query not found` and `Didn't receive final reply
+  for query ... Timeout(600s)` on the peer link face, and it did not recover until it was restarted.
+  Stop the container's router, or start it without `R2_ZENOH_CONNECT`, for the tests.
 
 ## Dome teleop: joystick and Foxglove
 
@@ -202,6 +222,42 @@ Foxglove Teleop panel (which cannot publish stamped messages), and arbitrates be
 - The command is published from a 20 Hz timer, and one final zero when both sources are idle,
   so a source that goes quiet always results in a stop. A joystick stream older than
   `joystick_timeout_s` (joy_node gone) is ignored.
+
+- **The personality is the lowest priority**: the dome arbiter of `r2_expression` publishes
+  `geometry_msgs/TwistStamped` on `/dome/cmd/personality` (`angular.z`, rad/s, reliable, depth 1).
+  It drives the dome only while the joystick and Foxglove are not, and only while its latest
+  message (by arrival time, not stamp) is younger than `personality_timeout_s` (0.5 s). The
+  converter works with no personality node on the graph. NaN and inf are treated as 0, with a
+  warning at most once a minute.
+- **Only the personality is capped**: |v| at most `personality_max_speed_rad_s` (2.0; the
+  `personality_max_speed_rad_s` launch argument of `dome_teleop.launch.py` overrides it, so the
+  robot and the sim can differ; `launch_robot.launch.py` and the sim's `launch_sim.launch.py` set it, default 2.0), and the change per tick at most `personality_max_accel_rad_s2`
+  (6.0, so a 4 rad/s^2 profile from a 20 Hz clock out of phase with the converter's is never
+  flagged) times the tick, counted from the value last *sent* by any source (a joystick release
+  does not let the personality jump; a cold start to 2 rad/s takes about 0.3 s). Only increases in
+  magnitude are limited: braking (a smaller value of the same sign, or 0) is applied at once, a
+  reversal goes to 0 at once and then ramps up, and a timeout or takeover is immediate. The
+  joystick and Foxglove are not capped here.
+- **The dead-band floor**: the real dome's motor does nothing below about 0.44 rad/s positive and
+  0.57 negative, so a ramp through those values would count as "commanded" while the motor gets
+  0 %. When the last value sent is below `personality_min_speed_rad_s` (0.6; a launch argument
+  of `dome_teleop.launch.py`) and the wanted magnitude is at or above it, the first step jumps
+  to the floor with the wanted sign and the ramp starts from there; a reversal passes through 0
+  and then jumps to the floor. `capped` in the status is true only when the speed cap clipped the
+  value or the acceleration limit held it back by more than one tick's allowance, never for the
+  floor jump alone.
+- **Shutdown**: on SIGINT or SIGTERM (and on an exception) the converter publishes one final 0 on
+  the output topic and gives it up to 0.2 s to leave before closing, because the
+  ForwardCommandController holds its last command and the motor driver has no timeout. A second
+  signal while closing is ignored. SIGKILL (or a power loss) cannot send a 0: the dome keeps
+  turning at the last command, up to 2 rad/s (a risk carried in the phase 2 plan's risk list).
+- **Status**: `astromech_msgs/DomeCommandStatus` on `/dome/cmd/status` (reliable, depth 1) with
+  `source` (`idle`, `joystick`, `foxglove`, `personality`), `velocity_rad_s` (what was sent) and
+  `capped`, on every source change and at `status_hz` (2.0) otherwise.
+
+Parameters (`config/dome_teleop.yaml`): the joystick and Foxglove ones above, plus
+`personality_topic`, `personality_field`, `personality_timeout_s`, `personality_max_speed_rad_s`,
+`personality_max_accel_rad_s2`, `personality_min_speed_rad_s`, `status_topic`, `status_hz`.
 
 Foxglove Teleop panel setup: topic `/cmd_vel_dome_foxglove`, message `geometry_msgs/Twist`,
 map the left and right buttons to `angular.z` -1 and +1 (`foxglove_field`), publish rate about
@@ -242,6 +298,7 @@ It also starts the expression arbiters of `r2_expression` (`expression`, default
 | `rate_hz` | `5.0` | tick and `/mood/state` rate |
 | `expression` | `true` | start the expression arbiters |
 | `expression_config` | `r2_expression`'s installed `config/expression.yaml` | the arbiter config |
+| `dome` | `true` | start the dome arbiter (`/dome_arbiter`) in `r2_expression` |
 | `dome_mock` | `false` | start the dome mock of `r2_mocks` (the sim sets `true`) |
 | `dome_mock_name` | `r2_dome` | node name, hence namespace, of the mock; the sim launch files pass `dome_mock` (the mock's `/dome/text/line*` and `/dome/audio/level` then live under `/dome_mock/dome/...`) |
 | `device` | empty | device the arbiters use; empty means `/` + `dome_mock_name` with the mock, else `/r2_dome` |

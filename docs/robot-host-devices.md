@@ -210,3 +210,38 @@ systemctl show cyphal_service -p StateDirectory          # StateDirectory=cyphal
 journalctl -u cyphal_service -b | grep -c readonly       # 0
 journalctl -u cyphal_service -b | grep "SocketCAN worker started"   # on 'can_shoulder'
 ```
+
+## `limits.conf`: the realtime group and nice 19
+
+`/etc/security/limits.conf` on the Pi gives the `realtime` group (which `pi` is in) the
+limits ros2_control's real-time setup asks for. Until 2026-10-23 the block was
+
+```
+@realtime soft rtprio 99
+@realtime soft priority 99
+@realtime soft memlock unlimited
+@realtime hard rtprio 99
+@realtime hard priority 99
+@realtime hard memlock unlimited
+```
+
+`priority` is not a scheduling priority in `pam_limits`: it is the *nice* value of every
+process the user starts, range -20 to 19, so 99 was clamped to 19. Every SSH login of `pi`,
+the VS Code server and everything launched from them (the Zenoh router, the controller
+manager, the arbiters) ran at nice 19, which starved the router and the controller manager
+whenever the Pi was loaded (spawners failing to acquire their lock at boot, the router not
+answering liveliness queries). The README's "run the control stack at normal priority" bullet
+described the symptom; this was the cause. Fixed 2026-10-23 by deleting the two `priority`
+lines; the block is now
+
+```
+@realtime soft rtprio 99
+@realtime soft memlock unlimited
+@realtime hard rtprio 99
+@realtime hard memlock unlimited
+```
+
+It applies to new logins. For a running stack, `sudo renice -n 0 -u pi`.
+
+Check: a fresh `ssh pi@r2-body` session prints `0` for `nice`, and
+`ps -o pid,ni,comm -C ros2_control_node,rmw_zenohd` shows `0` in the `NI` column.

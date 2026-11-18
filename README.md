@@ -244,9 +244,9 @@ Foxglove Teleop panel (which cannot publish stamped messages), and arbitrates be
   magnitude are limited: braking (a smaller value of the same sign, or 0) is applied at once, a
   reversal goes to 0 at once and then ramps up, and a timeout or takeover is immediate. The
   joystick and Foxglove are not capped here.
-- **The dead-band floor**: the real dome's motor does nothing below about 0.44 rad/s positive and
-  0.57 negative, so a ramp through those values would count as "commanded" while the motor gets
-  0 %. When the last value sent is below `personality_min_speed_rad_s` (0.6; a launch argument
+- **The dead-band floor**: the real dome's motor does nothing below about 0.63 rad/s positive and
+  0.69 negative, so a ramp through those values would count as "commanded" while the motor gets
+  0 %. When the last value sent is below `personality_min_speed_rad_s` (0.75; a launch argument
   of `dome_teleop.launch.py`) and the wanted magnitude is at or above it, the first step jumps
   to the floor with the wanted sign and the ramp starts from there; a reversal passes through 0
   and then jumps to the floor. `capped` in the status is true only when the speed cap clipped the

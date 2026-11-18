@@ -47,7 +47,7 @@ def generate_launch_description():
             description='Speed cap (rad/s) the dome converter puts on the personality input'),
         DeclareLaunchArgument(
             'personality_min_speed_rad_s',
-            default_value='0.6',
+            default_value='0.75',
             description='Dead-band floor (rad/s): a personality move starts at this speed'),
         dome_teleop_node,
         dome_twist_converter
